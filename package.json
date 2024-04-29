@@ -1,0 +1,26 @@
+{
+  "name": "@ptah/dualshock",
+  "version": "0.0.0",
+  "description": "Tiny implementation of the bi-directional JSON/MessagePack -based RPC",
+  "main": "index.js",
+  "scripts": {
+    "dev": "ts-node ./src/index.ts | pino-pretty",
+    "build": "tsc build",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Bohdan Shulha <b.shulha@pm.me>",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "@types/ws": "^8.5.10",
+    "pino-pretty": "^11.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5"
+  },
+  "dependencies": {
+    "bufferutil": "^4.0.8",
+    "pino": "^9.0.0",
+    "ws": "^8.17.0",
+    "zod": "^3.23.4"
+  }
+}
