@@ -1,14 +1,4 @@
-import { RpcServer } from "./RpcServer";
-import {WebSocketServer} from "ws";
-import createPino from "pino";
-
-const wss = new WebSocketServer({
-    port: 8000,
-});
-
-const logger = createPino();
-
-const rpcServer = new RpcServer({
-    wss,
-    logger,
-});
+export { RpcServer } from "./RpcServer";
+export { RpcClient } from "./RpcClient";
+export { RpcRouter } from "./RpcRouter";
+export { WebSocketDom } from "./websocket/WebSocket.dom";
