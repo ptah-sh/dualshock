@@ -48,6 +48,8 @@ class SerialSource {
 
 export class RpcConnection {
   protected readonly serialSource: SerialSource = new SerialSource();
+
+  // TODO: cleanup receivers (reject all pending) on disconnect.
   protected receivers: Map<number, Function> = new Map();
   protected textDecoder: TextDecoder = new TextDecoder("utf-8");
   protected textEncoder: TextEncoder = new TextEncoder();
@@ -61,11 +63,12 @@ export class RpcConnection {
   }
 
   protected async handleMessage(rawData: ArrayBuffer) {
-    this.log.info({
-      msg: "Got message",
-      data: JSON.parse(this.textDecoder.decode(rawData)),
-    });
+    // this.log.info({
+    //   // msg: "Got message",
+    //   data: JSON.parse(this.textDecoder.decode(rawData)),
+    // });
 
+    // TODO: handle validation errors
     const parsedPacket = packet.parse(
       JSON.parse(this.textDecoder.decode(rawData))
     );
@@ -91,6 +94,17 @@ export class RpcConnection {
       }
 
       receiver(parsedPacket);
+    } else if (type === "error") {
+      const receiver = this.receivers.get(serial);
+      if (receiver != null) {
+        receiver(parsedPacket);
+
+        return;
+      }
+
+      this.log.error(`Error received without receiver: serial '${serial}'`);
+    } else {
+      throw new Error(`Unhandled message type: '${type}'`);
     }
   }
 
@@ -110,14 +124,32 @@ export class RpcConnection {
       ok: false,
       serial: serial,
       type: "error",
-      error: {
-        code: err instanceof BaseRpcError ? err.code : null,
-        message: err instanceof Error ? err.message : "Unknown error",
-        stack: err instanceof Error ? err.stack : null,
-      },
+      error: this.formatError(err),
     });
+  }
 
-    this.disconnect();
+  protected formatError(err: unknown) {
+    if (err instanceof BaseRpcError) {
+      return {
+        code: err.code,
+        message: err.message,
+        stack: err.stack,
+      };
+    }
+
+    if (err instanceof Error) {
+      return {
+        code: null,
+        message: err.message,
+        stack: err.stack,
+      };
+    }
+
+    return {
+      code: null,
+      message: "Unknown error",
+      stack: null,
+    };
   }
 
   protected async send(packet: Packet): Promise<void> {

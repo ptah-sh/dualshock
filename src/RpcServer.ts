@@ -1,8 +1,9 @@
 import { WebSocket, WebSocketServer } from "ws";
-import { RpcRouter } from "./RpcRouter";
+import { RpcOptions, RpcRouter } from "./RpcRouter";
 import { Logger } from "pino";
 import { RpcConnection } from "./RpcConnection";
 import { WebSocketWs } from "./websocket/WebSocket.ws";
+import { z, ZodType } from "zod";
 
 interface RpcServerOptions {
   wss: WebSocketServer;
@@ -13,27 +14,26 @@ export class RpcServer {
   protected wss: WebSocketServer;
   protected log: Logger;
 
-  protected router: RpcRouter = new RpcRouter();
+  protected router: RpcRouter;
 
   constructor(args: RpcServerOptions) {
     this.wss = args.wss;
     this.log = args.logger;
+    this.router = new RpcRouter(this.log);
 
     this.wss.on("connection", this.handleConnection.bind(this));
 
     this.router.rpc({
       name: "ping",
-      fn: async () => {
-        this.log.info("RpcServer: ping");
-
-        return new Date();
-      },
+      args: z.date(),
+      result: z.date(),
+      fn: async () => new Date(),
     });
   }
 
   // TODO: add timeout for receiving the first message (handshake).
   // TODO: handlers should accept the WS connection / or it should be abstracted ???
-  handleConnection(ws: WebSocket) {
+  protected handleConnection(ws: WebSocket) {
     this.log.info("Incoming Connection");
 
     new RpcConnection(new WebSocketWs(ws), this.log, this.router);
@@ -42,7 +42,16 @@ export class RpcServer {
     ws.on("close", this.handleClose.bind(this));
   }
 
-  handleError(err: Error) {}
+  protected handleError(err: Error) {}
 
-  handleClose() {}
+  protected handleClose() {}
+
+  // TODO: extract router proxy methods (.rpc(), .ns()) into a separate base class/trait to reuse them in RpcServer and RpcClient?
+  rpc<A extends ZodType, R extends ZodType>(opts: RpcOptions<A, R>) {
+    return this.router.rpc(opts);
+  }
+
+  ns(name: string) {
+    return this.router.ns(name);
+  }
 }
