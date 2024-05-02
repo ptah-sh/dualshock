@@ -50,3 +50,8 @@ export const ValidationError = class ValidationError extends makeErrorClass(
 		Object.setPrototypeOf(this, ValidationError.prototype);
 	}
 };
+
+export const InternalError = makeErrorClass(
+	"InternalError",
+	"RPC_INTERNAL_ERROR",
+);

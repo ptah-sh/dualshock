@@ -4,6 +4,7 @@ import type { RpcRouter } from "./RpcRouter";
 import { type ZodError, z, type ZodIssue } from "zod";
 import type { WebSocket } from "./websocket/WebSocket";
 import { isZodError } from "./zod";
+import { type ContextInstance, createContext } from "./context";
 
 const packet = z.union([
 	z.object({
@@ -50,18 +51,19 @@ class SerialSource {
 	}
 }
 
-export class RpcConnection {
+export class RpcConnection<Context extends object> {
 	protected readonly serialSource: SerialSource = new SerialSource();
 
 	// TODO: cleanup receivers (reject all pending) on disconnect.
 	protected receivers: Map<number, Function> = new Map();
 	protected textDecoder: TextDecoder = new TextDecoder("utf-8");
 	protected textEncoder: TextEncoder = new TextEncoder();
+	protected context: ContextInstance<Context> = createContext();
 
 	constructor(
 		protected ws: WebSocket,
 		protected log: Logger,
-		protected router: RpcRouter,
+		protected router: RpcRouter<Context>,
 	) {
 		ws.onMessage(this.handleMessage.bind(this));
 	}
@@ -83,7 +85,7 @@ export class RpcConnection {
 			const { name, args } = parsedPacket;
 
 			try {
-				const result = await this.router.handle(name, args);
+				const result = await this.router.handle(name, args, this.context);
 
 				await this.reply(serial, result);
 			} catch (err: unknown) {

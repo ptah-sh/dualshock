@@ -2,16 +2,21 @@ import { RpcConnection } from "./RpcConnection";
 import type { Logger } from "pino";
 import { RpcRouter } from "./RpcRouter";
 import type { WebSocket } from "./websocket/WebSocket";
+import { BaseRpcClient } from "./BaseRpcClient";
 
-export class RpcClient {
+export class RpcClient<
+	Context extends object = object,
+> extends BaseRpcClient<Context> {
 	protected ping: NodeJS.Timeout | null = null;
-	protected rpc: RpcConnection;
+	protected rpcConnection: RpcConnection<Context>;
 
 	constructor(
 		protected ws: WebSocket,
 		protected log: Logger,
 	) {
-		this.rpc = new RpcConnection(ws, log, new RpcRouter(log));
+		super(log, new RpcRouter<Context>(log));
+
+		this.rpcConnection = new RpcConnection(ws, this.log, this.router);
 
 		ws.onOpen(this.handleOpen.bind(this));
 		ws.onError(this.handleDisconnect.bind(this));
@@ -19,7 +24,7 @@ export class RpcClient {
 	}
 
 	async invoke(rpc: string, args?: unknown) {
-		return this.rpc.invoke(rpc, args);
+		return this.rpcConnection.invoke(rpc, args);
 	}
 
 	protected handleDisconnect() {

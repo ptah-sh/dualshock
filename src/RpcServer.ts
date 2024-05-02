@@ -4,22 +4,20 @@ import type { Logger } from "pino";
 import { RpcConnection } from "./RpcConnection";
 import { WebSocketWs } from "./websocket/WebSocket.ws";
 import { z, type ZodType } from "zod";
+import { BaseRpcClient } from "./BaseRpcClient";
 
 interface RpcServerOptions {
 	wss: WebSocketServer;
 	logger: Logger;
 }
 
-export class RpcServer {
+export class RpcServer<Context extends object> extends BaseRpcClient<Context> {
 	protected wss: WebSocketServer;
-	protected log: Logger;
-
-	protected router: RpcRouter;
 
 	constructor(args: RpcServerOptions) {
+		super(args.logger, new RpcRouter(args.logger));
+
 		this.wss = args.wss;
-		this.log = args.logger;
-		this.router = new RpcRouter(this.log);
 
 		this.wss.on("connection", this.handleConnection.bind(this));
 
@@ -45,13 +43,4 @@ export class RpcServer {
 	protected handleError(err: Error) {}
 
 	protected handleClose() {}
-
-	// TODO: extract router proxy methods (.rpc(), .ns()) into a separate base class/trait to reuse them in RpcServer and RpcClient?
-	rpc<A extends ZodType, R extends ZodType>(opts: RpcOptions<A, R>): RpcRouter {
-		return this.router.rpc(opts);
-	}
-
-	ns(name: string): RpcRouter {
-		return this.router.ns(name);
-	}
 }
