@@ -1,187 +1,214 @@
-import { Logger } from "pino";
-import { BaseRpcError } from "./errors";
-import { RpcRouter } from "./RpcRouter";
-import { z } from "zod";
-import { WebSocket } from "./websocket/WebSocket";
+import type { Logger } from "pino";
+import { BaseRpcError, ValidationError } from "./errors";
+import type { RpcRouter } from "./RpcRouter";
+import { type ZodError, z, type ZodIssue } from "zod";
+import type { WebSocket } from "./websocket/WebSocket";
+import { isZodError } from "./zod";
 
-const packet = z
-  .object({
-    serial: z.number(),
-    type: z.literal("invoke"),
-    name: z.string(),
-    args: z.unknown().optional(),
-  })
-  .or(
-    z.object({
-      ok: z.literal(true),
-      serial: z.number(),
-      type: z.literal("result"),
-      data: z.unknown(),
-    })
-  )
-  .or(
-    z.object({
-      ok: z.literal(false),
-      serial: z.number(),
-      type: z.literal("error"),
-      error: z.unknown(),
-    })
-  );
+const packet = z.union([
+	z.object({
+		serial: z.number(),
+		type: z.literal("invoke"),
+		name: z.string(),
+		args: z.unknown().optional(),
+	}),
+	z.object({
+		ok: z.literal(true),
+		serial: z.number(),
+		type: z.literal("result"),
+		data: z.unknown(),
+	}),
+	z.object({
+		ok: z.literal(false),
+		serial: z.number(),
+		type: z.literal("invalid"),
+		errors: z.array(
+			z.object({
+				code: z.string(),
+				path: z.union([z.string(), z.number()]).array(),
+				message: z.string(),
+			}),
+		),
+	}),
+	z.object({
+		ok: z.literal(false),
+		serial: z.number(),
+		type: z.literal("error"),
+		error: z.unknown(),
+	}),
+]);
 
 type Packet = z.infer<typeof packet>;
 
-interface GenericResult {
-  ok: boolean;
-  data?: unknown;
-  error?: unknown;
-}
-
 class SerialSource {
-  private serial: number = 0;
+	private serial = 0;
 
-  get nextSerial(): number {
-    this.serial += 1;
+	get nextSerial(): number {
+		this.serial += 1;
 
-    return this.serial;
-  }
+		return this.serial;
+	}
 }
 
 export class RpcConnection {
-  protected readonly serialSource: SerialSource = new SerialSource();
+	protected readonly serialSource: SerialSource = new SerialSource();
 
-  // TODO: cleanup receivers (reject all pending) on disconnect.
-  protected receivers: Map<number, Function> = new Map();
-  protected textDecoder: TextDecoder = new TextDecoder("utf-8");
-  protected textEncoder: TextEncoder = new TextEncoder();
+	// TODO: cleanup receivers (reject all pending) on disconnect.
+	protected receivers: Map<number, Function> = new Map();
+	protected textDecoder: TextDecoder = new TextDecoder("utf-8");
+	protected textEncoder: TextEncoder = new TextEncoder();
 
-  constructor(
-    protected ws: WebSocket,
-    protected log: Logger,
-    protected router: RpcRouter
-  ) {
-    ws.onMessage(this.handleMessage.bind(this));
-  }
+	constructor(
+		protected ws: WebSocket,
+		protected log: Logger,
+		protected router: RpcRouter,
+	) {
+		ws.onMessage(this.handleMessage.bind(this));
+	}
 
-  protected async handleMessage(rawData: ArrayBuffer) {
-    // this.log.info({
-    //   // msg: "Got message",
-    //   data: JSON.parse(this.textDecoder.decode(rawData)),
-    // });
+	protected async handleMessage(rawData: ArrayBuffer) {
+		// this.log.info({
+		//   // msg: "Got message",
+		//   data: JSON.parse(this.textDecoder.decode(rawData)),
+		// });
 
-    // TODO: handle validation errors
-    const parsedPacket = packet.parse(
-      JSON.parse(this.textDecoder.decode(rawData))
-    );
+		// TODO: handle validation errors
+		const parsedPacket = packet.parse(
+			JSON.parse(this.textDecoder.decode(rawData)),
+		);
 
-    const { serial, type } = parsedPacket;
+		const { serial, type } = parsedPacket;
 
-    if (type === "invoke") {
-      const { name, args } = parsedPacket;
+		if (type === "invoke") {
+			const { name, args } = parsedPacket;
 
-      try {
-        const result = await this.router.handle(name, args);
+			try {
+				const result = await this.router.handle(name, args);
 
-        await this.reply(serial, result);
-      } catch (err: unknown) {
-        await this.error(serial, err);
-      }
-    } else if (type === "result") {
-      const receiver = this.receivers.get(serial);
-      if (receiver == null) {
-        this.log.error(`No such receiver: serial '${serial}'`);
+				await this.reply(serial, result);
+			} catch (err: unknown) {
+				if (isZodError(err)) {
+					await this.invalid(serial, err.errors);
 
-        return;
-      }
+					return;
+				}
 
-      receiver(parsedPacket);
-    } else if (type === "error") {
-      const receiver = this.receivers.get(serial);
-      if (receiver != null) {
-        receiver(parsedPacket);
+				await this.error(serial, err);
+			}
+		} else if (type === "result") {
+			const receiver = this.receivers.get(serial);
+			if (receiver == null) {
+				this.log.error(`No such receiver: serial '${serial}'`);
 
-        return;
-      }
+				return;
+			}
 
-      this.log.error(`Error received without receiver: serial '${serial}'`);
-    } else {
-      throw new Error(`Unhandled message type: '${type}'`);
-    }
-  }
+			receiver(parsedPacket);
+		} else if (type === "error" || type === "invalid") {
+			const receiver = this.receivers.get(serial);
+			if (receiver != null) {
+				receiver(parsedPacket);
 
-  protected async reply(serial: number, data: unknown) {
-    await this.send({
-      ok: true,
-      serial: serial,
-      type: "result",
-      data: data,
-    });
-  }
+				return;
+			}
 
-  // TODO: allow to pass custom error message
-  // TODO: return stacktrace in dev mode, hide stacktrace on prod
-  protected async error(serial: number, err: unknown) {
-    await this.send({
-      ok: false,
-      serial: serial,
-      type: "error",
-      error: this.formatError(err),
-    });
-  }
+			// TODO: protocol error and disconnect?
+			this.log.error(`Error received without receiver: serial '${serial}'`);
+		} else {
+			throw new Error(`Unhandled message type: '${type}'`);
+		}
+	}
 
-  protected formatError(err: unknown) {
-    if (err instanceof BaseRpcError) {
-      return {
-        code: err.code,
-        message: err.message,
-        stack: err.stack,
-      };
-    }
+	protected async reply(serial: number, data: unknown) {
+		await this.send({
+			ok: true,
+			serial: serial,
+			type: "result",
+			data: data,
+		});
+	}
 
-    if (err instanceof Error) {
-      return {
-        code: null,
-        message: err.message,
-        stack: err.stack,
-      };
-    }
+	protected async invalid(serial: number, errors: ZodIssue[]) {
+		await this.send({
+			ok: false,
+			serial: serial,
+			type: "invalid",
+			errors: errors,
+		});
+	}
 
-    return {
-      code: null,
-      message: "Unknown error",
-      stack: null,
-    };
-  }
+	// TODO: allow to pass custom error message
+	// TODO: return stacktrace in dev mode, hide stacktrace on prod
+	protected async error(serial: number, err: unknown) {
+		await this.send({
+			ok: false,
+			serial: serial,
+			type: "error",
+			error: this.formatError(err),
+		});
+	}
 
-  protected async send(packet: Packet): Promise<void> {
-    this.ws.send(this.textEncoder.encode(JSON.stringify(packet)).buffer);
-  }
+	protected formatError(err: unknown) {
+		if (err instanceof BaseRpcError) {
+			return {
+				code: err.code,
+				message: err.message,
+				stack: err.stack,
+			};
+		}
 
-  async invoke(rpc: string, args?: unknown): Promise<unknown> {
-    const serial = this.serialSource.nextSerial;
+		if (err instanceof Error) {
+			return {
+				code: null,
+				message: err.message,
+				stack: err.stack,
+			};
+		}
 
-    await this.send({
-      serial: serial,
-      type: "invoke",
-      name: rpc,
-      args: args,
-    });
+		return {
+			code: null,
+			message: "Unknown error",
+			stack: null,
+		};
+	}
 
-    return new Promise((resolve, reject) => {
-      this.receivers.set(serial, (result: GenericResult) => {
-        this.receivers.delete(serial);
-        if (result.ok) {
-          resolve(result.data);
+	protected async send(packet: Packet): Promise<void> {
+		this.ws.send(this.textEncoder.encode(JSON.stringify(packet)).buffer);
+	}
 
-          return;
-        }
+	async invoke(rpc: string, args?: unknown): Promise<unknown> {
+		const serial = this.serialSource.nextSerial;
 
-        reject(result.error);
-      });
-    });
-  }
+		await this.send({
+			serial: serial,
+			type: "invoke",
+			name: rpc,
+			args: args,
+		});
 
-  disconnect() {
-    this.ws.close();
-    // this.ws.removeAllListeners();
-  }
+		return new Promise((resolve, reject) => {
+			this.receivers.set(serial, (result: Packet) => {
+				this.receivers.delete(serial);
+
+				switch (result.type) {
+					case "result":
+						resolve(result.data);
+						return;
+					case "error":
+						reject(result.error);
+						return;
+					case "invalid":
+						reject(new ValidationError(result.errors));
+						return;
+					default:
+						throw new Error(`Unhandled packet type: '${result.type}'`);
+				}
+			});
+		});
+	}
+
+	disconnect() {
+		this.ws.close();
+		// this.ws.removeAllListeners();
+	}
 }

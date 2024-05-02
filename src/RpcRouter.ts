@@ -1,64 +1,74 @@
 import { NotFoundError } from "./errors";
-import { ZodType, TypeOf } from "zod";
-import { Logger } from "pino";
+import type { ZodType, TypeOf } from "zod";
+import type { Logger } from "pino";
 
 export interface RpcOptions<A extends ZodType, R extends ZodType> {
-  name: string;
-  args?: A;
-  result?: R;
-  fn: (args: TypeOf<A>) => Promise<TypeOf<R>>;
+	name: string;
+	args?: A;
+	result?: R;
+	fn: (args: TypeOf<A>) => Promise<TypeOf<R>>;
 }
 
 export class RpcRouter {
-  protected registry: Record<string, RpcRouter | RpcOptions<ZodType, ZodType>> =
-    {};
+	protected registry: Record<string, RpcRouter | RpcOptions<ZodType, ZodType>> =
+		{};
 
-  constructor(protected log: Logger, protected namespace?: string) {}
+	constructor(
+		protected log: Logger,
+		protected namespace?: string,
+	) {}
 
-  ns(name: string) {
-    const subRouter = new RpcRouter(
-      this.log,
-      [this.namespace, name].filter(Boolean).join(":")
-    );
+	ns(name: string): RpcRouter {
+		// TODO: throw an error if the rpc/namespace were already registered
 
-    this.registry[name] = subRouter;
+		const subRouter = new RpcRouter(
+			this.log,
+			[this.namespace, name].filter(Boolean).join(":"),
+		);
 
-    return subRouter;
-  }
+		this.registry[name] = subRouter;
 
-  rpc<A extends ZodType, R extends ZodType>(opts: RpcOptions<A, R>) {
-    // TODO: add name validation - allow only A-z, 0-9 in specific order
-    const name = [this.namespace, opts.name].filter(Boolean).join(":");
+		return subRouter;
+	}
 
-    this.log.info(`RPC registerd - '${name}'`);
+	rpc<A extends ZodType, R extends ZodType>(opts: RpcOptions<A, R>): RpcRouter {
+		// TODO: add name validation - allow only A-z, 0-9 in specific order
+		// TODO: throw an error if the rpc/namespace were already registered
+		const name = [this.namespace, opts.name].filter(Boolean).join(":");
 
-    this.registry[opts.name] = opts as RpcOptions<any, any>;
-  }
+		this.log.info(`RPC registerd - '${name}'`);
 
-  async handle(rpcName: string, jsonData: unknown): Promise<unknown> {
-    const columnPos = rpcName.indexOf(":");
+		this.registry[opts.name] = opts as RpcOptions<any, any>;
 
-    const ns = columnPos > 0 ? rpcName.slice(0, columnPos) : undefined;
-    const rpc = columnPos > 0 ? rpcName.slice(columnPos + 1) : rpcName;
+		return this;
+	}
 
-    console.log(rpcName, rpc, ns);
-    const rpcDef = this.registry[ns || rpc];
-    if (rpcDef == null) {
-      throw new NotFoundError(rpcName);
-    }
+	async handle(rpcName: string, jsonData: unknown): Promise<unknown> {
+		const columnPos = rpcName.indexOf(":");
 
-    if (rpcDef instanceof RpcRouter) {
-      return rpcDef.handle(rpc, jsonData);
-    }
+		const ns = columnPos > 0 ? rpcName.slice(0, columnPos) : undefined;
+		const rpc = columnPos > 0 ? rpcName.slice(columnPos + 1) : rpcName;
 
-    const { args: argsSchema, result: resultSchema, fn } = rpcDef;
+		const rpcDef = this.registry[ns || rpc];
+		if (rpcDef == null) {
+			throw new NotFoundError(rpcName);
+		}
 
-    // TODO: throw invalid payload on argsSchema.parse failure
-    const result = await fn.call(null, argsSchema?.parse(jsonData));
-    if (true /** TODO: shouldCheckResponses */) {
-      resultSchema?.parse(result);
-    }
+		if (rpcDef instanceof RpcRouter) {
+			return rpcDef.handle(rpc, jsonData);
+		}
 
-    return result;
-  }
+		const { args: argsSchema, result: resultSchema, fn } = rpcDef;
+
+		const args = await argsSchema?.parseAsync(jsonData);
+
+		const result = await fn.call(null, args);
+		if (
+			true /** TODO: add config option `shouldCheckResponses` in dev mode */
+		) {
+			resultSchema?.parse(result);
+		}
+
+		return result;
+	}
 }

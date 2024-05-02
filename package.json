@@ -13,6 +13,7 @@
   "author": "Bohdan Shulha <b.shulha@pm.me>",
   "license": "MIT",
   "devDependencies": {
+    "@biomejs/biome": "^1.7.2",
     "@types/node": "^20.12.7",
     "@types/ws": "^8.5.10",
     "pino-pretty": "^11.0.0",
