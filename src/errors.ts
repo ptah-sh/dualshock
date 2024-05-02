@@ -35,11 +35,12 @@ export const InvalidPayloadError = makeErrorClass(
 
 export const NotFoundError = makeErrorClass("NotFoundError", "RPC_NOT_FOUND");
 
-interface ValidationErrorItem {
+export interface ValidationErrorItem {
 	code: string;
 	path: (string | number)[];
 	message: string;
 }
+
 export const ValidationError = class ValidationError extends makeErrorClass(
 	"ValidationError",
 	"RPC_VALIDATION_ERROR",

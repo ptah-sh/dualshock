@@ -1,5 +1,9 @@
 import type { Logger } from "pino";
-import { BaseRpcError, ValidationError } from "./errors";
+import {
+	BaseRpcError,
+	ValidationError,
+	type ValidationErrorItem,
+} from "./errors";
 import type { RpcRouter } from "./RpcRouter";
 import { type ZodError, z, type ZodIssue } from "zod";
 import type { WebSocket } from "./websocket/WebSocket";
@@ -89,7 +93,7 @@ export class RpcConnection<Context extends object> {
 
 				await this.reply(serial, result);
 			} catch (err: unknown) {
-				if (isZodError(err)) {
+				if (isZodError(err) || err instanceof ValidationError) {
 					await this.invalid(serial, err.errors);
 
 					return;
@@ -130,7 +134,10 @@ export class RpcConnection<Context extends object> {
 		});
 	}
 
-	protected async invalid(serial: number, errors: ZodIssue[]) {
+	protected async invalid(
+		serial: number,
+		errors: ZodIssue[] | ValidationErrorItem[],
+	) {
 		await this.send({
 			ok: false,
 			serial: serial,

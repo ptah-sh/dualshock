@@ -1,17 +1,30 @@
-import { NotFoundError } from "./errors";
-import type { ZodType, TypeOf } from "zod";
+import { NotFoundError, ValidationError } from "./errors";
+import { type ZodType, type TypeOf, ZodObject, ZodCustomIssue } from "zod";
 import type { Logger } from "pino";
 import type { ContextInstance } from "./context";
+import type { Refine } from "./refine";
 
-export interface RpcOptions<A extends ZodType, R extends ZodType, Context> {
+export type RpcOptions<
+	A extends ZodType,
+	R extends ZodType,
+	Context extends object,
+> = {
 	name: string;
 	args?: A;
-	result?: R;
-	fn: (
-		args: TypeOf<A>,
-		context: ContextInstance<Context>,
-	) => Promise<TypeOf<R>>;
-}
+	refine?: Refine<TypeOf<A>, Context>[];
+} & (
+	| {
+			returns: R;
+			fn: (
+				args: TypeOf<A>,
+				context: ContextInstance<Context>,
+			) => Promise<TypeOf<R>>;
+	  }
+	| {
+			returns?: never;
+			fn: (args: TypeOf<A>, context: ContextInstance<Context>) => Promise<void>;
+	  }
+);
 
 export class RpcRouter<Context extends object> {
 	protected registry: Record<
@@ -70,9 +83,24 @@ export class RpcRouter<Context extends object> {
 			return rpcDef.handle(rpc, jsonData, context);
 		}
 
-		const { args: argsSchema, result: resultSchema, fn } = rpcDef;
+		const { args: argsSchema, returns: resultSchema, fn, refine = [] } = rpcDef;
 
-		const args = await argsSchema?.parseAsync(jsonData);
+		const strictSchema =
+			argsSchema instanceof ZodObject ? argsSchema.strict() : argsSchema;
+
+		const args = await strictSchema?.parseAsync(jsonData);
+
+		for (const ref of refine) {
+			if (!(await ref.fn(args, context))) {
+				throw new ValidationError([
+					{
+						code: ref.code || "custom",
+						message: ref.message,
+						path: ref.path,
+					},
+				]);
+			}
+		}
 
 		const result = await fn.call(null, args, context);
 		if (

@@ -24,7 +24,7 @@ export class RpcServer<Context extends object> extends BaseRpcClient<Context> {
 		this.router.rpc({
 			name: "ping",
 			args: z.date(),
-			result: z.date(),
+			returns: z.date(),
 			fn: async () => new Date(),
 		});
 	}

@@ -11,6 +11,14 @@ export function createContext<
 
 	return new Proxy(holder, {
 		get: (target, key) => {
+			switch (key) {
+				case "require":
+				case "has":
+				case "set":
+				case "get":
+					return target[key].bind(target);
+			}
+
 			return target.get(key as keyof Context);
 		},
 
