@@ -56,3 +56,8 @@ export const InternalError = makeErrorClass(
 	"InternalError",
 	"RPC_INTERNAL_ERROR",
 );
+
+export const AccessDeniedError = makeErrorClass(
+	"AccessDeniedError",
+	"RPC_ACCESS_DENIED",
+);

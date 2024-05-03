@@ -2,34 +2,13 @@ import { NotFoundError, ValidationError } from "./errors";
 import { type ZodType, type TypeOf, ZodObject, ZodCustomIssue } from "zod";
 import type { Logger } from "pino";
 import type { ContextInstance } from "./context";
-import type { Refine } from "./refine";
-
-export type RpcOptions<
-	A extends ZodType,
-	R extends ZodType,
-	Context extends object,
-> = {
-	name: string;
-	args?: A;
-	refine?: Refine<TypeOf<A>, Context>[];
-} & (
-	| {
-			returns: R;
-			fn: (
-				args: TypeOf<A>,
-				context: ContextInstance<Context>,
-			) => Promise<TypeOf<R>>;
-	  }
-	| {
-			returns?: never;
-			fn: (args: TypeOf<A>, context: ContextInstance<Context>) => Promise<void>;
-	  }
-);
+import type { RpcDefinition } from "./RpcDefinition";
+import { Refine } from "./refine";
 
 export class RpcRouter<Context extends object> {
 	protected registry: Record<
 		string,
-		RpcRouter<Context> | RpcOptions<ZodType, ZodType, Context>
+		RpcRouter<Context> | RpcDefinition<ZodType, ZodType, Context>
 	> = {};
 
 	constructor(
@@ -51,7 +30,7 @@ export class RpcRouter<Context extends object> {
 	}
 
 	rpc<A extends ZodType, R extends ZodType>(
-		opts: RpcOptions<A, R, Context>,
+		opts: RpcDefinition<A, R, Context>,
 	): RpcRouter<Context> {
 		// TODO: add name validation - allow only A-z, 0-9 in specific order
 		// TODO: throw an error if the rpc/namespace were already registered
@@ -59,7 +38,7 @@ export class RpcRouter<Context extends object> {
 
 		this.log.info(`RPC registerd - '${name}'`);
 
-		this.registry[opts.name] = opts as RpcOptions<any, any, Context>;
+		this.registry[opts.name] = opts as RpcDefinition<any, any, Context>;
 
 		return this;
 	}
@@ -83,27 +62,35 @@ export class RpcRouter<Context extends object> {
 			return rpcDef.handle(rpc, jsonData, context);
 		}
 
-		const { args: argsSchema, returns: resultSchema, fn, refine = [] } = rpcDef;
+		const { args: argsSchema, returns: resultSchema, fn, refine } = rpcDef;
 
 		const strictSchema =
 			argsSchema instanceof ZodObject ? argsSchema.strict() : argsSchema;
 
 		const args = await strictSchema?.parseAsync(jsonData);
-
-		for (const ref of refine) {
-			if (!(await ref.fn(args, context))) {
-				throw new ValidationError([
-					{
-						code: ref.code || "custom",
-						message: ref.message,
-						path: ref.path,
-					},
-				]);
-			}
+		if (refine?.args) {
+			await runRefinements(args, refine.args, context);
 		}
 
 		const result = await fn.call(null, args, context);
+		if (refine?.returns) {
+			await runRefinements(result, refine.returns, context);
+		}
 
-		return resultSchema?.parse(result);
+		return resultSchema?.parseAsync(result);
+	}
+}
+
+async function runRefinements(data: any, refinements: Refine<any, any>[], context: any) {
+	for (const ref of refinements) {
+		if (!(await ref.fn(data, context))) {
+			throw new ValidationError([
+				{
+					code: ref.code || "custom",
+					message: ref.message,
+					path: ref.path,
+				},
+			]);
+		}
 	}
 }

@@ -10,6 +10,9 @@ export class ContextHolder<Context> {
 	//       vs
 	//     ctx = createContext(z.object({}), { 'userId': 'Unauthenticated, please log in first' });
 	//     ctx.require('userId')
+	//   and to set the error type
+	//     ctx.createContext(z.object({}), { 'userId': 'Unauthenticated, please log in first', error: AccessDeniedError })
+	//     ctx.require('userId')
 	require(key: keyof Context): Context[keyof Context] {
 		const value = this.context.get(key);
 		if (value == null) {

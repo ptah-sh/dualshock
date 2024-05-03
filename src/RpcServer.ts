@@ -1,5 +1,5 @@
 import type { WebSocket, WebSocketServer } from "ws";
-import { type RpcOptions, RpcRouter } from "./RpcRouter";
+import { RpcRouter } from "./RpcRouter";
 import type { Logger } from "pino";
 import { RpcConnection } from "./RpcConnection";
 import { WebSocketWs } from "./websocket/WebSocket.ws";
