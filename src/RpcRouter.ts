@@ -103,12 +103,7 @@ export class RpcRouter<Context extends object> {
 		}
 
 		const result = await fn.call(null, args, context);
-		if (
-			true /** TODO: add config option `shouldCheckResponses` in dev mode */
-		) {
-			resultSchema?.parse(result);
-		}
 
-		return result;
+		return resultSchema?.parse(result);
 	}
 }

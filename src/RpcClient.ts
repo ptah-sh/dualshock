@@ -41,4 +41,8 @@ export class RpcClient<
 			// const result = await this.rpc.invoke("ping");
 		}, 1000);
 	}
+
+	close() {
+		this.ws.close();
+	}
 }
