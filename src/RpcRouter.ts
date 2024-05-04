@@ -6,23 +6,17 @@ import type { RpcDefinition } from "./RpcDefinition";
 import { Refine } from "./refine";
 
 export class RpcRouter<Context extends object> {
-	protected registry: Record<
+	public readonly registry: Record<
 		string,
 		RpcRouter<Context> | RpcDefinition<ZodType, ZodType, Context>
 	> = {};
 
-	constructor(
-		protected log: Logger,
-		protected namespace?: string,
-	) {}
+	constructor(protected log: Logger) {}
 
 	ns(name: string): RpcRouter<Context> {
 		// TODO: throw an error if the rpc/namespace were already registered
 
-		const subRouter = new RpcRouter<Context>(
-			this.log,
-			[this.namespace, name].filter(Boolean).join(":"),
-		);
+		const subRouter = new RpcRouter<Context>(this.log);
 
 		this.registry[name] = subRouter;
 
@@ -33,11 +27,7 @@ export class RpcRouter<Context extends object> {
 		opts: RpcDefinition<A, R, Context>,
 	): RpcRouter<Context> {
 		// TODO: add name validation - allow only A-z, 0-9 in specific order
-		// TODO: throw an error if the rpc/namespace were already registered
-		const name = [this.namespace, opts.name].filter(Boolean).join(":");
-
-		this.log.info(`RPC registerd - '${name}'`);
-
+		// TODO: throw an error if the rpc has been already registered
 		this.registry[opts.name] = opts as RpcDefinition<any, any, Context>;
 
 		return this;
@@ -81,7 +71,11 @@ export class RpcRouter<Context extends object> {
 	}
 }
 
-async function runRefinements(data: any, refinements: Refine<any, any>[], context: any) {
+async function runRefinements(
+	data: any,
+	refinements: Refine<any, any>[],
+	context: any,
+) {
 	for (const ref of refinements) {
 		if (!(await ref.fn(data, context))) {
 			throw new ValidationError([

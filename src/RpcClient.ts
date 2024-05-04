@@ -5,6 +5,7 @@ import type { WebSocket } from "./websocket/WebSocket";
 import { BaseRpcClient } from "./BaseRpcClient";
 
 export class RpcClient<
+	Invokables extends { [key: string]: { args: any; returns: any } } = any,
 	Context extends object = object,
 > extends BaseRpcClient<Context> {
 	protected ping: NodeJS.Timeout | null = null;
@@ -16,14 +17,21 @@ export class RpcClient<
 	) {
 		super(log, new RpcRouter<Context>(log));
 
-		this.rpcConnection = new RpcConnection(ws, this.log, this.router);
+		this.rpcConnection = new RpcConnection<Context, Invokables>(
+			ws,
+			this.log,
+			this.router,
+		);
 
 		ws.onOpen(this.handleOpen.bind(this));
 		ws.onError(this.handleDisconnect.bind(this));
 		ws.onClose(this.handleDisconnect.bind(this));
 	}
 
-	async invoke(rpc: string, args?: unknown) {
+	async invoke<T extends keyof Invokables>(
+		rpc: T,
+		args?: Invokables[T]["args"],
+	): Promise<Invokables[T]["returns"]> {
 		return this.rpcConnection.invoke(rpc, args);
 	}
 

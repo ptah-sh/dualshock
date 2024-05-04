@@ -11,7 +11,9 @@ interface RpcServerOptions {
 	logger: Logger;
 }
 
-export class RpcServer<Context extends object> extends BaseRpcClient<Context> {
+export class RpcServer<
+	Context extends object = object,
+> extends BaseRpcClient<Context> {
 	protected wss: WebSocketServer;
 
 	constructor(args: RpcServerOptions) {

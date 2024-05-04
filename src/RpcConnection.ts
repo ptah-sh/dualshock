@@ -55,7 +55,10 @@ class SerialSource {
 	}
 }
 
-export class RpcConnection<Context extends object> {
+export class RpcConnection<
+	Context extends object,
+	Invokables extends { [key: string]: { args: any; returns: any } } = any,
+> {
 	protected readonly serialSource: SerialSource = new SerialSource();
 
 	// TODO: cleanup receivers (reject all pending) on disconnect.
@@ -185,13 +188,16 @@ export class RpcConnection<Context extends object> {
 		this.ws.send(this.textEncoder.encode(JSON.stringify(packet)).buffer);
 	}
 
-	async invoke(rpc: string, args?: unknown): Promise<unknown> {
+	async invoke<T extends keyof Invokables>(
+		rpc: T,
+		args?: Invokables[T]["args"],
+	): Promise<Invokables[T]["returns"]> {
 		const serial = this.serialSource.nextSerial;
 
 		await this.send({
 			serial: serial,
 			type: "invoke",
-			name: rpc,
+			name: rpc as string,
 			args: args,
 		});
 
