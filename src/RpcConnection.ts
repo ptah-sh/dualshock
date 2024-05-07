@@ -3,12 +3,11 @@ import {
 	BaseRpcError,
 	ValidationError,
 	type ValidationErrorItem,
-} from "./errors";
-import type { RpcRouter } from "./RpcRouter";
+} from "./errors.js";
+import type { RpcRouter } from "./RpcRouter.js";
 import { type ZodError, z, type ZodIssue } from "zod";
-import type { WebSocket } from "./websocket/WebSocket";
-import { isZodError } from "./zod";
-import { type ContextInstance, createContext } from "./context";
+import type { WebSocket } from "./websocket/WebSocket.js";
+import { isZodError } from "./zod.js";
 
 const packet = z.union([
 	z.object({
@@ -56,7 +55,6 @@ class SerialSource {
 }
 
 export class RpcConnection<
-	Context extends object,
 	Invokables extends { [key: string]: { args: any; returns: any } } = any,
 > {
 	protected readonly serialSource: SerialSource = new SerialSource();
@@ -65,12 +63,12 @@ export class RpcConnection<
 	protected receivers: Map<number, Function> = new Map();
 	protected textDecoder: TextDecoder = new TextDecoder("utf-8");
 	protected textEncoder: TextEncoder = new TextEncoder();
-	protected context: ContextInstance<Context> = createContext();
+	protected context: unknown = {};
 
 	constructor(
 		protected ws: WebSocket,
 		protected log: Logger,
-		protected router: RpcRouter<Context>,
+		protected router: RpcRouter,
 	) {
 		ws.onMessage(this.handleMessage.bind(this));
 	}
@@ -81,19 +79,19 @@ export class RpcConnection<
 		//   data: JSON.parse(this.textDecoder.decode(rawData)),
 		// });
 
+		console.log("RECEIVED PACKET", this.textDecoder.decode(rawData));
 		// TODO: handle validation errors
 		const parsedPacket = packet.parse(
 			JSON.parse(this.textDecoder.decode(rawData)),
 		);
 
 		const { serial, type } = parsedPacket;
-
 		if (type === "invoke") {
 			const { name, args } = parsedPacket;
 
 			try {
+				console.log(name);
 				const result = await this.router.handle(name, args, this.context);
-
 				await this.reply(serial, result);
 			} catch (err: unknown) {
 				if (isZodError(err) || err instanceof ValidationError) {
@@ -101,7 +99,7 @@ export class RpcConnection<
 
 					return;
 				}
-
+				console.log("NOT A ZOD ERROR", err);
 				await this.error(serial, err);
 			}
 		} else if (type === "result") {
@@ -115,6 +113,7 @@ export class RpcConnection<
 			receiver(parsedPacket);
 		} else if (type === "error" || type === "invalid") {
 			const receiver = this.receivers.get(serial);
+			console.log("RECEIVED ERROR", parsedPacket);
 			if (receiver != null) {
 				receiver(parsedPacket);
 
@@ -185,6 +184,7 @@ export class RpcConnection<
 	}
 
 	protected async send(packet: Packet): Promise<void> {
+		console.log("SENDING PACKET", packet);
 		this.ws.send(this.textEncoder.encode(JSON.stringify(packet)).buffer);
 	}
 

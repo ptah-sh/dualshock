@@ -1,12 +1,12 @@
-import type { RpcDefinition } from "@/RpcDefinition";
 import { program } from "commander";
 import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { jsonSchemaToZod } from "json-schema-to-zod";
 import { writeFile, readFile } from "node:fs/promises";
+import type { TRpc } from "../RpcDefinition.js";
 
 export type DualshockConfig = {
-	registry: Record<string, RpcDefinition<any, any, any>>;
+	registry: Record<string, TRpc<any, any, any>>;
 };
 
 const dualshockConfig = z.object({

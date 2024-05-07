@@ -1,30 +1,36 @@
-import { RpcConnection } from "./RpcConnection";
+import { RpcConnection } from "./RpcConnection.js";
 import type { Logger } from "pino";
-import { RpcRouter } from "./RpcRouter";
-import type { WebSocket } from "./websocket/WebSocket";
-import { BaseRpcClient } from "./BaseRpcClient";
+import { RpcRouter } from "./RpcRouter.js";
+import type { WebSocket } from "./websocket/WebSocket.js";
+import { BaseRpcClient } from "./BaseRpcClient.js";
 
 export class RpcClient<
 	Invokables extends { [key: string]: { args: any; returns: any } } = any,
-	Context extends object = object,
-> extends BaseRpcClient<Context> {
+> extends BaseRpcClient {
 	protected ping: NodeJS.Timeout | null = null;
-	protected rpcConnection: RpcConnection<Context>;
+	protected rpcConnection: RpcConnection;
+	protected signalReady: (() => void) | null = null;
+
+	public readonly ready: Promise<void>;
 
 	constructor(
 		protected ws: WebSocket,
 		protected log: Logger,
 	) {
-		super(log, new RpcRouter<Context>(log));
+		super(log, new RpcRouter(log));
 
-		this.rpcConnection = new RpcConnection<Context, Invokables>(
+		this.ready = new Promise((resolve) => {
+			this.signalReady = resolve;
+		});
+
+		this.rpcConnection = new RpcConnection<Invokables>(
 			ws,
 			this.log,
 			this.router,
 		);
 
 		ws.onOpen(this.handleOpen.bind(this));
-		ws.onError(this.handleDisconnect.bind(this));
+		ws.onError(this.handleError.bind(this));
 		ws.onClose(this.handleDisconnect.bind(this));
 	}
 
@@ -33,6 +39,10 @@ export class RpcClient<
 		args?: Invokables[T]["args"],
 	): Promise<Invokables[T]["returns"]> {
 		return this.rpcConnection.invoke(rpc, args);
+	}
+
+	protected handleError(err: Error) {
+		this.log.error(err);
 	}
 
 	protected handleDisconnect() {
@@ -44,6 +54,9 @@ export class RpcClient<
 	}
 
 	protected handleOpen() {
+		this.signalReady?.();
+		this.signalReady = null;
+
 		this.ping = setInterval(async () => {
 			// TODO: enable ping
 			// const result = await this.rpc.invoke("ping");

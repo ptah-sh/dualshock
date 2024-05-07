@@ -1,4 +1,4 @@
-import type { WebSocket as WSI } from "./WebSocket";
+import type { WebSocket as WSI } from "./WebSocket.js";
 
 export class WebSocketDom implements WSI {
 	constructor(protected ws: WebSocket) {
@@ -29,11 +29,11 @@ export class WebSocketDom implements WSI {
 	}
 
 	protected handleError(callback: (err: Error) => void, evt: Event): void {
-		console.log("ERROR", evt);
+		callback(new Error("Unhandled error"));
 	}
 
 	protected handleMessage(callback: (data: ArrayBuffer) => void, evt: Event) {
-		if (!(evt instanceof MessageEvent)) {
+		if (!isMessageEvent(evt)) {
 			return;
 		}
 
@@ -43,4 +43,8 @@ export class WebSocketDom implements WSI {
 	close() {
 		this.ws.close();
 	}
+}
+
+function isMessageEvent(evt: Event): evt is MessageEvent {
+	return evt.type === "message";
 }

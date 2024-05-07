@@ -1,34 +1,37 @@
-import { NotFoundError, ValidationError } from "./errors";
+import { NotFoundError, ValidationError } from "./errors.js";
 import { type ZodType, type TypeOf, ZodObject, ZodCustomIssue } from "zod";
 import type { Logger } from "pino";
-import type { ContextInstance } from "./context";
-import type { RpcDefinition } from "./RpcDefinition";
-import { Refine } from "./refine";
+import type { RpcBuilder, TRpc } from "./RpcDefinition.js";
 
-export class RpcRouter<Context extends object> {
-	public readonly registry: Record<
-		string,
-		RpcRouter<Context> | RpcDefinition<ZodType, ZodType, Context>
-	> = {};
+export class RpcRouter {
+	public readonly registry: Record<string, RpcRouter | TRpc<any, any, any>> =
+		{};
 
 	constructor(protected log: Logger) {}
 
-	ns(name: string): RpcRouter<Context> {
+	ns(name: string): RpcRouter {
 		// TODO: throw an error if the rpc/namespace were already registered
 
-		const subRouter = new RpcRouter<Context>(this.log);
+		const subRouter = new RpcRouter(this.log);
 
 		this.registry[name] = subRouter;
 
 		return subRouter;
 	}
 
-	rpc<A extends ZodType, R extends ZodType>(
-		opts: RpcDefinition<A, R, Context>,
-	): RpcRouter<Context> {
+	rpc<
+		A extends ZodType,
+		R extends ZodType,
+		C extends ZodType,
+		T extends TRpc<A, R, C>,
+		TOmit extends keyof TRpc<A, R, C> = never,
+	>(
+		name: string,
+		rpcDef: Pick<RpcBuilder<A, R, C, T, TOmit>, "schema">,
+	): RpcRouter {
 		// TODO: add name validation - allow only A-z, 0-9 in specific order
 		// TODO: throw an error if the rpc has been already registered
-		this.registry[opts.name] = opts as RpcDefinition<any, any, Context>;
+		this.registry[name] = rpcDef.schema;
 
 		return this;
 	}
@@ -36,7 +39,7 @@ export class RpcRouter<Context extends object> {
 	async handle(
 		rpcName: string,
 		jsonData: unknown,
-		context: ContextInstance<Context>,
+		context: unknown,
 	): Promise<unknown> {
 		const columnPos = rpcName.indexOf(":");
 
@@ -54,37 +57,40 @@ export class RpcRouter<Context extends object> {
 
 		const { args: argsSchema, returns: resultSchema, fn, refine } = rpcDef;
 
-		const strictSchema =
-			argsSchema instanceof ZodObject ? argsSchema.strict() : argsSchema;
-
-		const args = await strictSchema?.parseAsync(jsonData);
-		if (refine?.args) {
-			await runRefinements(args, refine.args, context);
+		const args = await argsSchema?.parseAsync(jsonData);
+		if (refine) {
+			for (const ref of refine) {
+				if (ref.pre) {
+					if (!(await ref.pre(args, context))) {
+						throw new ValidationError([
+							{
+								code: ref.code || "custom",
+								message: ref.message,
+								path: ref.path,
+							},
+						]);
+					}
+				}
+			}
 		}
 
-		const result = await fn.call(null, args, context);
-		if (refine?.returns) {
-			await runRefinements(result, refine.returns, context);
+		const returns = await fn.call(null, args, context);
+		if (refine) {
+			for (const ref of refine) {
+				if (ref.post) {
+					if (!(await ref.post(args, returns, context))) {
+						throw new ValidationError([
+							{
+								code: ref.code || "custom",
+								message: ref.message,
+								path: ref.path,
+							},
+						]);
+					}
+				}
+			}
 		}
 
-		return resultSchema?.parseAsync(result);
-	}
-}
-
-async function runRefinements(
-	data: any,
-	refinements: Refine<any, any>[],
-	context: any,
-) {
-	for (const ref of refinements) {
-		if (!(await ref.fn(data, context))) {
-			throw new ValidationError([
-				{
-					code: ref.code || "custom",
-					message: ref.message,
-					path: ref.path,
-				},
-			]);
-		}
+		return resultSchema?.parseAsync(returns);
 	}
 }

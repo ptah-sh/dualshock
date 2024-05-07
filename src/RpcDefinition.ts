@@ -1,20 +1,85 @@
-import type { TypeOf, ZodType } from "zod";
-import type { Refine } from "./refine";
-import type { ContextInstance } from "./context";
+import type { TypeOf, ZodType, ZodTypeAny } from "zod";
+import { ZodObject, z } from "zod";
+import { refine, type TRefine } from "./refine.js";
 
-export type RpcDefinition<
-	A extends ZodType | undefined,
-	R extends ZodType | undefined,
-	Context extends object,
+const strictSchema = <T extends ZodTypeAny>(schema: T) => {
+	if (schema instanceof ZodObject) {
+		return schema.strict() as ZodTypeAny;
+	}
+
+	return schema;
+};
+
+export type TRpc<
+	A extends ZodTypeAny,
+	R extends ZodTypeAny,
+	C extends ZodTypeAny,
 > = {
-	name: string;
+	context?: C;
 	args?: A;
-    returns?: R;
-	refine?: {
-        args?: A extends ZodType ? Refine<TypeOf<A>, Context>[] : never;
-        returns?: R extends ZodType ? Refine<TypeOf<R>, Context>[] : never;
-    };
-    fn: (args: A extends ZodType ? TypeOf<A> : undefined, context: ContextInstance<Context>) => Promise<R extends ZodType ? TypeOf<R> : void>;
+	returns?: R;
+	refine?: Array<TRefine<any, any, any>>;
+	fn: (args: TypeOf<A>, context: TypeOf<C>) => Promise<TypeOf<R>>;
+};
+export class RpcBuilder<
+	A extends ZodTypeAny,
+	R extends ZodTypeAny,
+	C extends ZodTypeAny,
+	T extends TRpc<A, R, C>,
+	TOmit extends keyof TRpc<A, R, C> = never,
+> {
+	constructor(private build: T) {}
+
+	context<
+		V extends C,
+		B extends RpcBuilder<A, R, V, TRpc<A, R, V>, TOmit | "context">,
+	>(context: V): B {
+		this.build.context = strictSchema(context) as V;
+
+		return this as unknown as B;
+	}
+
+	args<
+		V extends A,
+		B extends RpcBuilder<V, R, C, TRpc<V, R, C>, TOmit | "args">,
+	>(args: V): Omit<B, TOmit | "args"> {
+		this.build.args = strictSchema(args) as V;
+
+		return this as unknown as B;
+	}
+
+	returns<
+		V extends R,
+		B extends RpcBuilder<A, V, C, TRpc<A, V, C>, TOmit | "returns">,
+	>(returns: V): Omit<B, TOmit | "returns"> {
+		this.build.returns = strictSchema(returns) as V;
+
+		return this as unknown as B;
+	}
+
+	refine<
+		V extends {
+			refineSchema: TRefine<TypeOf<A>, TypeOf<R>, TypeOf<C>>;
+		},
+		B extends RpcBuilder<A, R, C, TRpc<A, R, C>, TOmit | "refine">,
+	>(refine: Array<V>): B {
+		this.build.refine = refine.map((r) => r.refineSchema);
+
+		return this as unknown as B;
+	}
+
+	fn<
+		V extends (args: TypeOf<A>, context: TypeOf<C>) => Promise<TypeOf<R>>,
+		B extends RpcBuilder<A, R, C, TRpc<A, R, C>, TOmit | "fn">,
+	>(fn: V): Pick<B, "schema"> {
+		this.build.fn = fn;
+
+		return this as unknown as B;
+	}
+
+	get schema(): TRpc<A, R, C> {
+		return this.build;
+	}
 }
 
 /**
@@ -26,16 +91,23 @@ export type RpcDefinition<
  * Usage:
  * ```ts
  * // myRpc.ts
- * export const myRpc = rpc({
- *    ...
- * })
+ * export const myRpc = rpc().fn(async () => console.log('hello!'))
  *
  * // rpcServer.ts
  * import { myRpc } from "./myRpc"
- * server.rpc(myRpc)
+ * server.rpc("myrpc", myRpc)
  * ```
  *
- * @param opts - The options for the RPC call
  * @returns The RPC definition with the provided options
  */
-export const rpc = <A extends ZodType | undefined, R extends ZodType | undefined, Context extends object>(opts: RpcDefinition<A, R, Context>) => opts;
+export const rpc = <
+	A extends ZodTypeAny,
+	R extends ZodTypeAny,
+	C extends ZodTypeAny,
+	T extends TRpc<A, R, C>,
+	TOmit extends keyof TRpc<A, R, C> = never,
+>(): RpcBuilder<A, R, C, T, TOmit> => {
+	return new RpcBuilder({
+		fn: async () => Promise.reject(new Error("Not implemented")),
+	} as TRpc<A, R, C>) as RpcBuilder<A, R, C, T, TOmit>;
+};

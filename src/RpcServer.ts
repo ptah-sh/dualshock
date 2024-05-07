@@ -1,19 +1,18 @@
 import type { WebSocket, WebSocketServer } from "ws";
-import { RpcRouter } from "./RpcRouter";
+import { RpcRouter } from "./RpcRouter.js";
 import type { Logger } from "pino";
-import { RpcConnection } from "./RpcConnection";
-import { WebSocketWs } from "./websocket/WebSocket.ws";
+import { RpcConnection } from "./RpcConnection.js";
+import { WebSocketWs } from "./websocket/WebSocket.ws.js";
 import { z, type ZodType } from "zod";
-import { BaseRpcClient } from "./BaseRpcClient";
+import { BaseRpcClient } from "./BaseRpcClient.js";
+import { rpc as define } from "./RpcDefinition.js";
 
 interface RpcServerOptions {
 	wss: WebSocketServer;
 	logger: Logger;
 }
 
-export class RpcServer<
-	Context extends object = object,
-> extends BaseRpcClient<Context> {
+export class RpcServer extends BaseRpcClient {
 	protected wss: WebSocketServer;
 
 	constructor(args: RpcServerOptions) {
@@ -23,12 +22,15 @@ export class RpcServer<
 
 		this.wss.on("connection", this.handleConnection.bind(this));
 
-		this.router.rpc({
-			name: "ping",
-			args: z.date(),
-			returns: z.date(),
-			fn: async () => new Date(),
-		});
+		this.router.rpc(
+			"ping",
+			define()
+				.args(z.date())
+				.returns(z.date())
+				.fn(async () => {
+					return new Date();
+				}),
+		);
 	}
 
 	// TODO: add timeout for receiving the first message (handshake).

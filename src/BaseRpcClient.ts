@@ -1,40 +1,37 @@
 import type { Logger } from "pino";
-import { RpcRouter } from "./RpcRouter";
-import type { RpcDefinition } from "./RpcDefinition";
+import { RpcRouter } from "./RpcRouter.js";
+import type { RpcBuilder, TRpc } from "./RpcDefinition.js";
 import type { ZodType, ZodTypeDef } from "zod";
 
-export abstract class BaseRpcClient<Context extends object> {
+export abstract class BaseRpcClient {
 	constructor(
 		protected log: Logger,
-		protected router: RpcRouter<Context>,
+		protected router: RpcRouter,
 	) {}
 
-	rpc<A extends ZodType, R extends ZodType>(
-		opts: RpcDefinition<A, R, Context>,
-	): RpcRouter<Context> {
-		return this.router.rpc(opts);
+	rpc<
+		A extends ZodType,
+		R extends ZodType,
+		C extends ZodType,
+		T extends TRpc<A, R, C>,
+		TOmit extends keyof TRpc<A, R, C> = never,
+	>(name: string, rpcDef: RpcBuilder<A, R, C, T, TOmit>): RpcRouter {
+		return this.router.rpc(name, rpcDef);
 	}
 
-	ns(name: string): RpcRouter<Context> {
+	ns(name: string): RpcRouter {
 		return this.router.ns(name);
 	}
 
-	registry<
-		A extends ZodType<any, ZodTypeDef, any> | undefined,
-		R extends ZodType<any, ZodTypeDef, any> | undefined,
-	>(): Record<string, RpcDefinition<A, R, Context>> {
+	registry(): Record<string, TRpc<any, any, any>> {
 		return collectRoutes([], this.router);
 	}
 }
 
-function collectRoutes<
-	A extends ZodType<any, ZodTypeDef, any> | undefined,
-	R extends ZodType<any, ZodTypeDef, any> | undefined,
-	Context extends object,
->(
+function collectRoutes(
 	path: string[],
-	router: RpcRouter<Context>,
-): Record<string, RpcDefinition<A, R, Context>> {
+	router: RpcRouter,
+): Record<string, TRpc<any, any, any>> {
 	return Object.entries(router.registry).reduce((acc, [key, value]) => {
 		if (value instanceof RpcRouter) {
 			return {
