@@ -1,4 +1,5 @@
 node_modules/
 .idea/
+# Ignoring package-lock.json as it is a library which couldn't lock deps versions.
 package-lock.json
 dist/
