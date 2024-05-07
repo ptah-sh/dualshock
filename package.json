@@ -1,6 +1,6 @@
 {
   "name": "@ptah-sh/dualshock",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "Tiny implementation of the bi-directional JSON/MessagePack -based RPC",
   "type": "module",
   "bin": {
