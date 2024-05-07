@@ -1,0 +1,33 @@
+name: "Build and publish"
+
+permissions:
+  contents: write
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  NPM_AUTH_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v3
+        with:
+          cache: npm
+          node-version-file: .nvmrc
+          cache-dependency-path: "package.json"
+      - run: npm install
+      - run: npm run build
+      - run: npm run test
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # stick to the patch version for simplicity
+          npm version patch
+          git push origin main --tags
+      - run: npm publish --access=public
