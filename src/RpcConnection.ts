@@ -5,11 +5,17 @@ import {
 	type ValidationErrorItem,
 } from "./errors.js";
 import type { RpcRouter } from "./RpcRouter.js";
-import { type ZodError, z, type ZodIssue } from "zod";
+import { type ZodError, z, type ZodIssue, type ZodTypeAny } from "zod";
 import type { WebSocket } from "./websocket/WebSocket.js";
 import { isZodError } from "./zod.js";
 
 const packet = z.union([
+	z.object({
+		serial: z.number(),
+		type: z.literal("event"),
+		name: z.string(),
+		payload: z.unknown().optional(),
+	}),
 	z.object({
 		serial: z.number(),
 		type: z.literal("invoke"),
@@ -17,13 +23,11 @@ const packet = z.union([
 		args: z.unknown().optional(),
 	}),
 	z.object({
-		ok: z.literal(true),
 		serial: z.number(),
 		type: z.literal("result"),
 		data: z.unknown(),
 	}),
 	z.object({
-		ok: z.literal(false),
 		serial: z.number(),
 		type: z.literal("invalid"),
 		errors: z.array(
@@ -35,9 +39,9 @@ const packet = z.union([
 		),
 	}),
 	z.object({
-		ok: z.literal(false),
 		serial: z.number(),
 		type: z.literal("error"),
+		// TODO: define better error type - require, at least, message
 		error: z.unknown(),
 	}),
 ]);
@@ -56,11 +60,13 @@ class SerialSource {
 
 export class RpcConnection<
 	Invokables extends { [key: string]: { args: any; returns: any } } = any,
+	Events extends { [key: string]: { payload: any } } = any,
 > {
 	protected readonly serialSource: SerialSource = new SerialSource();
 
 	// TODO: cleanup receivers (reject all pending) on disconnect.
 	protected receivers: Map<number, Function> = new Map();
+	protected listeners: Map<keyof Events, Function> = new Map();
 	protected textDecoder: TextDecoder = new TextDecoder("utf-8");
 	protected textEncoder: TextEncoder = new TextEncoder();
 	protected context: unknown = {};
@@ -85,11 +91,17 @@ export class RpcConnection<
 		);
 
 		const { serial, type } = parsedPacket;
-		if (type === "invoke") {
+		if (type === "event") {
+			const { name, payload } = parsedPacket;
+
+			await this.router.handleEvent(name, payload, this.context);
+
+			await this.reply(serial, null);
+		} else if (type === "invoke") {
 			const { name, args } = parsedPacket;
 
 			try {
-				const result = await this.router.handle(name, args, this.context);
+				const result = await this.router.handleRpc(name, args, this.context);
 
 				await this.reply(serial, result);
 			} catch (err: unknown) {
@@ -127,7 +139,6 @@ export class RpcConnection<
 
 	protected async reply(serial: number, data: unknown) {
 		await this.send({
-			ok: true,
 			serial: serial,
 			type: "result",
 			data: data,
@@ -139,7 +150,6 @@ export class RpcConnection<
 		errors: ZodIssue[] | ValidationErrorItem[],
 	) {
 		await this.send({
-			ok: false,
 			serial: serial,
 			type: "invalid",
 			errors: errors,
@@ -150,7 +160,6 @@ export class RpcConnection<
 	// TODO: return stacktrace in dev mode, hide stacktrace on prod
 	protected async error(serial: number, err: unknown) {
 		await this.send({
-			ok: false,
 			serial: serial,
 			type: "error",
 			error: this.formatError(err),
@@ -185,9 +194,27 @@ export class RpcConnection<
 		this.ws.send(this.textEncoder.encode(JSON.stringify(packet)).buffer);
 	}
 
+	// TODO: ??? validate payloads and strip unspecified keys with Zod? Same for `invoke`.
+	// TODO: track subscriptions to reduce traffic usage when events are not awaited.
+	async emit<T extends keyof Events>(
+		event: T,
+		payload: Events[T]["payload"],
+	): Promise<void> {
+		const serial = this.serialSource.nextSerial;
+
+		await this.send({
+			serial: serial,
+			type: "event",
+			name: event as string,
+			payload: payload,
+		});
+
+		return this.createReceiver(serial) as Promise<void>;
+	}
+
 	async invoke<T extends keyof Invokables>(
 		rpc: T,
-		args?: Invokables[T]["args"],
+		args: Invokables[T]["args"],
 	): Promise<Invokables[T]["returns"]> {
 		const serial = this.serialSource.nextSerial;
 
@@ -198,6 +225,15 @@ export class RpcConnection<
 			args: args,
 		});
 
+		return this.createReceiver(serial);
+	}
+
+	disconnect() {
+		this.ws.close();
+		// this.ws.removeAllListeners();
+	}
+
+	private createReceiver(serial: number) {
 		return new Promise((resolve, reject) => {
 			this.receivers.set(serial, (result: Packet) => {
 				this.receivers.delete(serial);
@@ -217,10 +253,5 @@ export class RpcConnection<
 				}
 			});
 		});
-	}
-
-	disconnect() {
-		this.ws.close();
-		// this.ws.removeAllListeners();
 	}
 }

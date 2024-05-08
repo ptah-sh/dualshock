@@ -1,21 +1,12 @@
 #!/usr/bin/env node
 
 import { program } from "commander";
-import { z } from "zod";
-import { zodToJsonSchema } from "zod-to-json-schema";
 import { jsonSchemaToZod } from "json-schema-to-zod";
 import { writeFile, readFile } from "node:fs/promises";
-import type { TRpc } from "../RpcDefinition.js";
+import { createSchema } from "./schema.js";
+import { DualshockConfig } from "./config.js";
 
-export type DualshockConfig = {
-	registry: Record<string, TRpc<any, any, any>>;
-};
-
-const dualshockConfig = z.object({
-	// TODO: convert RpcDefinition into zod and use it's schema here
-	registry: z.record(z.any()),
-	output: z.string().default("dualshock.schema.json"),
-});
+export { DualshockConfig };
 
 program
 	.command("schema")
@@ -29,27 +20,9 @@ program
 
 		const { default: configModule } = await import(configFilePath);
 
-		const config = dualshockConfig.parse(configModule);
+		const config = DualshockConfig.parse(configModule);
 
-		const schema = Object.entries(config.registry).reduce(
-			(acc, [key, value]: [string, any]) => {
-				const rpcSchema: any = {};
-
-				if (value.args) {
-					rpcSchema.args = zodToJsonSchema(value.args);
-				}
-				if (value.returns) {
-					rpcSchema.returns = zodToJsonSchema(value.returns);
-				}
-
-				acc[key] = rpcSchema;
-
-				return acc;
-			},
-			{
-				$schemaVersion: "dualshock:1",
-			} as any,
-		);
+		const schema = createSchema(config);
 
 		const serviceSchema = JSON.stringify(schema, null, 2);
 
@@ -63,13 +36,13 @@ program
 	.command("typescript")
 	.option("--schema <path>")
 	.option("--output <path>")
-	.option("--const <name>")
 	.description("Generate TypeScript types from the provided JSON Schema")
 	.action(
 		async ({
 			schema: schemaFile = `${process.cwd()}/dualshock.schema.json`,
 			output: outputFile = `${process.cwd()}/src/dualshock.gen.ts`,
-			typeName = "DualshockInvokables",
+			rpcTypeName = "DualshockInvokables",
+			eventTypeName = "DualshockEvents",
 		}) => {
 			// TODO: Should we call resolveRefs here?
 			// import { z } from "zod"
@@ -99,17 +72,30 @@ program
 				"//",
 				`// Schema: ${schemaFile}`,
 				`// Schema Version: ${$schemaVersion}`,
-				`// Type Name: ${typeName}`,
+				`// RPC Type Name: ${rpcTypeName}`,
+				`// Event Type Name: ${eventTypeName}`,
 				`// Output: ${outputFile}`,
 				"",
 			];
 
-			contents.push(
-				"import { z, type infer as zInfer, type ZodType } from 'zod';",
-			);
+			contents.push("import { z, type ZodType } from 'zod';");
 			contents.push("");
 
-			contents.push(`export const ${typeName} = {`);
+			console.log(`export const ${eventTypeName} = {`);
+			for (const [event, { payload }] of Object.entries<any>(schema.events)) {
+				contents.push(`  "${event}": {`);
+				contents.push(
+					`    payload: ${jsonSchemaToZod(payload).replace(
+						/\.strict\(\)/g,
+						"",
+					)},`,
+				);
+				contents.push("  },");
+			}
+			contents.push("} as const;");
+			contents.push("");
+
+			contents.push(`export const ${rpcTypeName} = {`);
 			for (const [rpc, { args, returns }] of Object.entries<any>(schema)) {
 				contents.push(`  "${rpc}": {`);
 				contents.push(
@@ -133,12 +119,12 @@ program
 			contents.push("");
 
 			contents.push(`
-				type TInvokables = typeof ${typeName};
+				type TInvokables = typeof ${rpcTypeName};
 				type TRpcName = keyof TInvokables;
 
-				export type ${typeName} = {
+				export type ${rpcTypeName} = {
 					[key in TRpcName]: {
-						args: zInfer<TInvokables[key]["args"]>;
+						args: z.infer<TInvokables[key]["args"]>;
 						returns: TInvokables[key]["returns"] extends ZodType<infer T> ? T : undefined;
 					}
 				}
@@ -149,6 +135,7 @@ program
 			});
 
 			console.log(`Generated: ${outputFile}`);
+
 			process.exit(0);
 		},
 	);

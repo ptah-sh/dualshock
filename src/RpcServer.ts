@@ -5,7 +5,7 @@ import { RpcConnection } from "./RpcConnection.js";
 import { WebSocketWs } from "./websocket/WebSocket.ws.js";
 import { z, type ZodType } from "zod";
 import { BaseRpcClient } from "./BaseRpcClient.js";
-import { rpc as define } from "./RpcDefinition.js";
+import { rpc } from "./RpcDefinition.js";
 
 interface RpcServerOptions {
 	wss: WebSocketServer;
@@ -24,7 +24,7 @@ export class RpcServer extends BaseRpcClient {
 
 		this.router.rpc(
 			"ping",
-			define()
+			rpc()
 				.args(z.date())
 				.returns(z.date())
 				.fn(async () => {

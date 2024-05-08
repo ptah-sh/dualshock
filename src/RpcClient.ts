@@ -6,6 +6,7 @@ import { BaseRpcClient } from "./BaseRpcClient.js";
 
 export class RpcClient<
 	Invokables extends { [key: string]: { args: any; returns: any } } = any,
+	Events extends { [key: string]: { payload: any } } = any,
 > extends BaseRpcClient {
 	protected ping: NodeJS.Timeout | null = null;
 	protected rpcConnection: RpcConnection;
@@ -32,6 +33,10 @@ export class RpcClient<
 		ws.onOpen(this.handleOpen.bind(this));
 		ws.onError(this.handleError.bind(this));
 		ws.onClose(this.handleDisconnect.bind(this));
+	}
+
+	async emit<T extends keyof Events>(event: T, payload?: Events[T]["payload"]) {
+		return this.rpcConnection.emit(event, payload);
 	}
 
 	async invoke<T extends keyof Invokables>(
