@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 import { program } from "commander";
 import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
