@@ -10,6 +10,14 @@ const strictSchema = <T extends ZodTypeAny>(schema: T) => {
 	return schema;
 };
 
+const stripSchema = <T extends ZodTypeAny>(schema: T) => {
+	if (schema instanceof ZodObject) {
+		return schema.strip() as ZodTypeAny;
+	}
+
+	return schema;
+};
+
 export type TRpc<
 	A extends ZodTypeAny,
 	R extends ZodTypeAny,
@@ -34,7 +42,7 @@ export class RpcBuilder<
 		V extends ZodTypeAny,
 		B extends RpcBuilder<A, R, V, TRpc<A, R, V>, TOmit | "context">,
 	>(context: V): B {
-		this.build.context = strictSchema(context) as V;
+		this.build.context = context as V;
 
 		return this as unknown as B;
 	}
@@ -52,7 +60,7 @@ export class RpcBuilder<
 		V extends ZodTypeAny,
 		B extends RpcBuilder<A, V, C, TRpc<A, V, C>, TOmit | "returns">,
 	>(returns: V): Omit<B, TOmit | "returns"> {
-		this.build.returns = strictSchema(returns) as V;
+		this.build.returns = stripSchema(returns) as V;
 
 		return this as unknown as B;
 	}

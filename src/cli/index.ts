@@ -14,7 +14,7 @@ export type DualshockConfig = {
 const dualshockConfig = z.object({
 	// TODO: convert RpcDefinition into zod and use it's schema here
 	registry: z.record(z.any()),
-	output: z.string().default(`${process.cwd()}/dualshock.schema.json`),
+	output: z.string().default("dualshock.schema.json"),
 });
 
 program
@@ -24,39 +24,40 @@ program
 		"Generate Dualshock RPC Schema to create client's type definitions (or client libs)",
 	)
 	// TODO: add beautiful error message - check if the file exists
-	.action(
-		async ({ config: configFile = `${process.cwd()}/dualshock.config.ts` }) => {
-			const { default: configModule } = await import(configFile);
+	.action(async ({ config: configFile = "dualshock.config.ts" }) => {
+		const configFilePath = getCwdPath(configFile);
 
-			const config = dualshockConfig.parse(configModule);
+		const { default: configModule } = await import(configFilePath);
 
-			const schema = Object.entries(config.registry).reduce(
-				(acc, [key, value]: [string, any]) => {
-					const rpcSchema: any = {};
+		const config = dualshockConfig.parse(configModule);
 
-					if (value.args) {
-						rpcSchema.args = zodToJsonSchema(value.args);
-					}
-					if (value.returns) {
-						rpcSchema.returns = zodToJsonSchema(value.returns);
-					}
+		const schema = Object.entries(config.registry).reduce(
+			(acc, [key, value]: [string, any]) => {
+				const rpcSchema: any = {};
 
-					acc[key] = rpcSchema;
+				if (value.args) {
+					rpcSchema.args = zodToJsonSchema(value.args);
+				}
+				if (value.returns) {
+					rpcSchema.returns = zodToJsonSchema(value.returns);
+				}
 
-					return acc;
-				},
-				{
-					$schemaVersion: "dualshock:1",
-				} as any,
-			);
+				acc[key] = rpcSchema;
 
-			const serviceSchema = JSON.stringify(schema, null, 2);
+				return acc;
+			},
+			{
+				$schemaVersion: "dualshock:1",
+			} as any,
+		);
 
-			await writeFile(config.output, serviceSchema);
+		const serviceSchema = JSON.stringify(schema, null, 2);
 
-			process.exit(0);
-		},
-	);
+		const outputPath = getCwdPath(config.output);
+		await writeFile(outputPath, serviceSchema);
+
+		process.exit(0);
+	});
 
 program
 	.command("typescript")
@@ -138,7 +139,7 @@ program
 				export type ${typeName} = {
 					[key in TRpcName]: {
 						args: zInfer<TInvokables[key]["args"]>;
-						returns: TInvokables[key]["returns"] extends ZodType<infer T> ? T : void;
+						returns: TInvokables[key]["returns"] extends ZodType<infer T> ? T : undefined;
 					}
 				}
 			`);
@@ -153,3 +154,9 @@ program
 	);
 
 program.parse();
+
+function getCwdPath(path: string) {
+	const slashedPath = path.startsWith("/") ? path : `/${path}`;
+
+	return process.cwd() + slashedPath;
+}
