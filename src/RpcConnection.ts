@@ -79,7 +79,6 @@ export class RpcConnection<
 		//   data: JSON.parse(this.textDecoder.decode(rawData)),
 		// });
 
-		console.log("RECEIVED PACKET", this.textDecoder.decode(rawData));
 		// TODO: handle validation errors
 		const parsedPacket = packet.parse(
 			JSON.parse(this.textDecoder.decode(rawData)),
@@ -90,8 +89,8 @@ export class RpcConnection<
 			const { name, args } = parsedPacket;
 
 			try {
-				console.log(name);
 				const result = await this.router.handle(name, args, this.context);
+
 				await this.reply(serial, result);
 			} catch (err: unknown) {
 				if (isZodError(err) || err instanceof ValidationError) {
@@ -99,7 +98,7 @@ export class RpcConnection<
 
 					return;
 				}
-				console.log("NOT A ZOD ERROR", err);
+
 				await this.error(serial, err);
 			}
 		} else if (type === "result") {
@@ -113,7 +112,6 @@ export class RpcConnection<
 			receiver(parsedPacket);
 		} else if (type === "error" || type === "invalid") {
 			const receiver = this.receivers.get(serial);
-			console.log("RECEIVED ERROR", parsedPacket);
 			if (receiver != null) {
 				receiver(parsedPacket);
 
@@ -184,7 +182,6 @@ export class RpcConnection<
 	}
 
 	protected async send(packet: Packet): Promise<void> {
-		console.log("SENDING PACKET", packet);
 		this.ws.send(this.textEncoder.encode(JSON.stringify(packet)).buffer);
 	}
 

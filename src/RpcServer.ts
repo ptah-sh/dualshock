@@ -44,7 +44,11 @@ export class RpcServer extends BaseRpcClient {
 		ws.on("close", this.handleClose.bind(this));
 	}
 
-	protected handleError(err: Error) {}
+	protected handleError(err: Error) {
+		this.log.warn('RpcServer: "handleError"', err);
+	}
 
-	protected handleClose() {}
+	protected handleClose() {
+		this.log.info("Connection closed");
+	}
 }

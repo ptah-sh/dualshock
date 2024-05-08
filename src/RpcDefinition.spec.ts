@@ -1,4 +1,4 @@
-import { describe, test } from "vitest";
+import { describe, expectTypeOf, test } from "vitest";
 import { refine } from "./refine.js";
 import { z } from "zod";
 import { rpc } from "./RpcDefinition.js";
@@ -120,5 +120,29 @@ describe("RpcDefinition", () => {
 
 				return Promise.resolve(true);
 			}).refineSchema;
+	});
+
+	test("refine - no args, no context, no returns", () => {
+		refine()
+			.pre(async (args, ctx) => {
+				expectTypeOf(args).toEqualTypeOf<undefined>();
+				expectTypeOf(ctx).toEqualTypeOf<undefined>();
+
+				return true;
+			})
+			.post(async (args, returns, ctx) => {
+				expectTypeOf(args).toEqualTypeOf<undefined>();
+				expectTypeOf(returns).toEqualTypeOf<undefined>();
+				expectTypeOf(ctx).toEqualTypeOf<undefined>();
+
+				return true;
+			});
+	});
+
+	test("rpc - no args, no context, no returns", () => {
+		rpc().fn(async (args, ctx) => {
+			expectTypeOf(args).toEqualTypeOf<undefined>();
+			expectTypeOf(ctx).toEqualTypeOf<undefined>();
+		});
 	});
 });

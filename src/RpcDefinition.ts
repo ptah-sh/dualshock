@@ -1,4 +1,4 @@
-import type { TypeOf, ZodType, ZodTypeAny } from "zod";
+import type { TypeOf, ZodType, ZodTypeAny, ZodUndefined } from "zod";
 import { ZodObject, z } from "zod";
 import { refine, type TRefine } from "./refine.js";
 
@@ -25,13 +25,13 @@ export class RpcBuilder<
 	A extends ZodTypeAny,
 	R extends ZodTypeAny,
 	C extends ZodTypeAny,
-	T extends TRpc<A, R, C>,
+	T extends TRpc<any, any, any>,
 	TOmit extends keyof TRpc<A, R, C> = never,
 > {
 	constructor(private build: T) {}
 
 	context<
-		V extends C,
+		V extends ZodTypeAny,
 		B extends RpcBuilder<A, R, V, TRpc<A, R, V>, TOmit | "context">,
 	>(context: V): B {
 		this.build.context = strictSchema(context) as V;
@@ -40,16 +40,16 @@ export class RpcBuilder<
 	}
 
 	args<
-		V extends A,
+		V extends ZodTypeAny,
 		B extends RpcBuilder<V, R, C, TRpc<V, R, C>, TOmit | "args">,
 	>(args: V): Omit<B, TOmit | "args"> {
-		this.build.args = strictSchema(args) as V;
+		this.build.args = strictSchema(args);
 
 		return this as unknown as B;
 	}
 
 	returns<
-		V extends R,
+		V extends ZodTypeAny,
 		B extends RpcBuilder<A, V, C, TRpc<A, V, C>, TOmit | "returns">,
 	>(returns: V): Omit<B, TOmit | "returns"> {
 		this.build.returns = strictSchema(returns) as V;
@@ -101,10 +101,10 @@ export class RpcBuilder<
  * @returns The RPC definition with the provided options
  */
 export const rpc = <
-	A extends ZodTypeAny,
-	R extends ZodTypeAny,
-	C extends ZodTypeAny,
-	T extends TRpc<A, R, C>,
+	A extends ZodTypeAny = ZodUndefined,
+	R extends ZodTypeAny = ZodUndefined,
+	C extends ZodTypeAny = ZodUndefined,
+	T extends TRpc<A, R, C> = TRpc<A, R, C>,
 	TOmit extends keyof TRpc<A, R, C> = never,
 >(): RpcBuilder<A, R, C, T, TOmit> => {
 	return new RpcBuilder({

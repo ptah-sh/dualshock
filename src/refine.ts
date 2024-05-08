@@ -1,4 +1,10 @@
-import { type ZodAny, z, type TypeOf, type ZodTypeAny } from "zod";
+import {
+	type ZodAny,
+	z,
+	type TypeOf,
+	type ZodTypeAny,
+	type ZodUndefined,
+} from "zod";
 
 export type TRefine<
 	A extends ZodTypeAny,
@@ -21,7 +27,7 @@ export class RefineBuilder<
 	C extends ZodTypeAny,
 	TOmit extends keyof TRefine<A, R, C> | "schema" = "schema",
 > {
-	constructor(private build: TRefine<A, R, C>) {}
+	constructor(private build: TRefine<any, any, any>) {}
 
 	path<B extends Omit<RefineBuilder<A, R, C, TOmit | "path">, TOmit | "path">>(
 		path: (string | number)[],
@@ -51,7 +57,7 @@ export class RefineBuilder<
 	}
 
 	context<
-		V extends C,
+		V extends ZodTypeAny,
 		B extends Omit<
 			RefineBuilder<A, R, V, TOmit | "context">,
 			TOmit | "context"
@@ -63,7 +69,7 @@ export class RefineBuilder<
 	}
 
 	args<
-		V extends A,
+		V extends ZodTypeAny,
 		B extends Omit<RefineBuilder<V, R, C, TOmit | "args">, TOmit | "args">,
 	>(args: V): B {
 		this.build.args = args;
@@ -72,7 +78,7 @@ export class RefineBuilder<
 	}
 
 	returns<
-		V extends R,
+		V extends ZodTypeAny,
 		B extends Omit<
 			RefineBuilder<A, V, C, TOmit | "returns">,
 			TOmit | "returns"
@@ -117,9 +123,9 @@ export class RefineBuilder<
 }
 
 export const refine = <
-	A extends ZodTypeAny,
-	R extends ZodTypeAny,
-	C extends ZodTypeAny,
+	A extends ZodTypeAny = ZodUndefined,
+	R extends ZodTypeAny = ZodUndefined,
+	C extends ZodTypeAny = ZodUndefined,
 >(): RefineBuilder<A, R, C> => {
 	return new RefineBuilder<A, R, C>({
 		message: "Not Implemented",
