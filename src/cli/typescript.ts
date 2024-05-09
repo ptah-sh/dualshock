@@ -1,5 +1,4 @@
 import { jsonSchemaToZod } from "json-schema-to-zod";
-import type { DualshockConfig } from "./config.js";
 
 export const createTypescript = (args: {
 	schema: { rpc: any; emits: any };
@@ -32,6 +31,16 @@ export const createTypescript = (args: {
 	contents.push("} as const;");
 	contents.push("");
 
+	contents.push(`export type ${emitsTypeName} = {`);
+	contents.push(`  [key in keyof typeof ${emitsTypeName}]: {`);
+	contents.push(
+		`    payload: z.infer<typeof ${emitsTypeName}[key]["payload"]>;`,
+	);
+	contents.push("  };");
+	contents.push("};");
+
+	contents.push("");
+
 	contents.push(`export const ${rpcTypeName} = {`);
 	for (const [rpc, { args, returns }] of Object.entries<any>(schema.rpc)) {
 		contents.push(`  "${rpc}": {`);
@@ -58,7 +67,7 @@ export const createTypescript = (args: {
 	contents.push(
 		`    returns: ${rpcTypeName}[key]["returns"] extends ZodType<infer T> ? T : undefined;`,
 	);
-	contents.push("  },");
+	contents.push("  };");
 	contents.push("}");
 
 	return contents.join("\n");

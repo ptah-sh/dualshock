@@ -24,6 +24,8 @@ program
 		const outputPath = getCwdPath(config.output);
 		await writeFile(outputPath, serviceSchema);
 
+		console.log(`🎉 Successfully generated schema to ${config.output}`);
+
 		process.exit(0);
 	});
 
@@ -72,7 +74,9 @@ program
 			encoding: "utf8",
 		});
 
-		console.log(`Generated: ${config.output}`);
+		console.log(
+			`🎉 Successfully generated TypeScript definitions to ${config.output}`,
+		);
 
 		process.exit(0);
 	});
