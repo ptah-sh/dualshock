@@ -78,12 +78,6 @@ export const DualshockEvents = {
   },
 } as const;
 
-export type DualshockEvents = {
-  [key in keyof typeof DualshockEvents]: {
-    payload: z.infer<typeof DualshockEvents[key]["payload"]>;
-  };
-};
-
 export const DualshockInvokables = {
   "ping": {
     args: z.string().datetime({ offset: true }),
@@ -98,11 +92,5 @@ export const DualshockInvokables = {
     returns: z.string(),
   },
 } as const;
-
-export type DualshockInvokables = {
-  [key in keyof typeof DualshockInvokables]: {
-    args: z.infer<typeof DualshockInvokables[key]["args"]>;
-    returns: DualshockInvokables[key]["returns"] extends ZodType<infer T> ? T : z.undefined();
-  };
-}"
+"
 `;
