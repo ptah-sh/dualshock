@@ -230,7 +230,7 @@ export class RpcConnection<
 	async invoke<T extends keyof Invokables>(
 		rpc: T,
 		args: TypeOf<Invokables[T]["args"]>,
-	): Promise<Invokables[T]["returns"]> {
+	): Promise<TypeOf<Invokables[T]["returns"]>> {
 		const schema = this.invokables[rpc];
 		if (schema == null) {
 			throw new Error(`RPC '${String(rpc)}' not found`);
