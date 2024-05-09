@@ -15,9 +15,7 @@ program
 	)
 	// TODO: add beautiful error message - check if the file exists
 	.action(async () => {
-		const { config: configFile } = program.opts();
-
-		const config = await readConfig(configFile, "schema");
+		const config = await readCommandConfig("schema");
 
 		const schema = createSchema(config);
 
@@ -33,8 +31,6 @@ program
 	.command("typescript")
 	.description("Generate TypeScript types from the provided JSON Schema")
 	.action(async () => {
-		const { config: configFile } = program.opts();
-
 		// TODO: Should we call resolveRefs here?
 		// import { z } from "zod"
 		// import { resolveRefs } from "json-refs"
@@ -49,7 +45,7 @@ program
 		//   return formatted
 		// }
 
-		const config = await readConfig(configFile, "typescript");
+		const config = await readCommandConfig("typescript");
 
 		const { $schemaVersion, ...schema } = await fetchSchema(config.schema);
 
@@ -89,10 +85,11 @@ function getCwdPath(path: string) {
 	return process.cwd() + slashedPath;
 }
 
-async function readConfig<K extends keyof DualshockConfig>(
-	configFile: string,
+async function readCommandConfig<K extends keyof DualshockConfig>(
 	key: K,
 ): Promise<DualshockConfig[K] | never> {
+	const { config: configFile = "dualshock.config.ts" } = program.opts();
+
 	const configFilePath = getCwdPath(configFile);
 
 	const { default: configModule } = await import(configFilePath);
