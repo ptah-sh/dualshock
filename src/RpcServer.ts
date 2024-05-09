@@ -3,19 +3,33 @@ import { RpcRouter } from "./RpcRouter.js";
 import type { Logger } from "pino";
 import { RpcConnection } from "./RpcConnection.js";
 import { WebSocketWs } from "./websocket/WebSocket.ws.js";
-import { z, type ZodType } from "zod";
+import { type TypeOf, type ZodTypeAny, z, type ZodType } from "zod";
 import { BaseRpcClient } from "./BaseRpcClient.js";
 import { rpc } from "./RpcDefinition.js";
 
-interface RpcServerOptions {
+interface RpcServerOptions<
+	Invokables extends Record<
+		string,
+		{ args: TypeOf<ZodTypeAny>; returns: TypeOf<ZodTypeAny> }
+	>,
+	Events extends Record<string, { payload: TypeOf<ZodTypeAny> }>,
+> {
 	wss: WebSocketServer;
 	logger: Logger;
+	invokables: Invokables;
+	events: Events;
 }
 
-export class RpcServer extends BaseRpcClient {
+export class RpcServer<
+	Invokables extends Record<
+		string,
+		{ args: TypeOf<ZodTypeAny>; returns: TypeOf<ZodTypeAny> }
+	>,
+	Events extends Record<string, { payload: TypeOf<ZodTypeAny> }>,
+> extends BaseRpcClient {
 	protected wss: WebSocketServer;
 
-	constructor(args: RpcServerOptions) {
+	constructor(args: RpcServerOptions<Invokables, Events>) {
 		super(args.logger, new RpcRouter(args.logger));
 
 		this.wss = args.wss;
@@ -38,7 +52,13 @@ export class RpcServer extends BaseRpcClient {
 	protected handleConnection(ws: WebSocket) {
 		this.log.info("Incoming Connection");
 
-		new RpcConnection(new WebSocketWs(ws), this.log, this.router);
+		new RpcConnection<Invokables, Events>(
+			new WebSocketWs(ws),
+			this.log,
+			this.router,
+			{} as Invokables,
+			{} as Events,
+		);
 
 		ws.on("error", this.handleError.bind(this));
 		ws.on("close", this.handleClose.bind(this));

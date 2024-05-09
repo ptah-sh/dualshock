@@ -11,6 +11,8 @@ import { createTypescript } from "./typescript.js";
 const server = new RpcServer({
 	wss: new WebSocketServer({ noServer: true }),
 	logger: pino({ enabled: false }),
+	invokables: {},
+	events: {},
 });
 
 server

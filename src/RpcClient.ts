@@ -3,13 +3,17 @@ import type { Logger } from "pino";
 import { RpcRouter } from "./RpcRouter.js";
 import type { WebSocket } from "./websocket/WebSocket.js";
 import { BaseRpcClient } from "./BaseRpcClient.js";
+import type { TypeOf, ZodTypeAny } from "zod";
 
 export class RpcClient<
-	Invokables extends { [key: string]: { args: any; returns: any } } = any,
-	Events extends { [key: string]: { payload: any } } = any,
+	Invokables extends Record<
+		string,
+		{ args: TypeOf<ZodTypeAny>; returns: TypeOf<ZodTypeAny> }
+	>,
+	Events extends Record<string, { payload: TypeOf<ZodTypeAny> }>,
 > extends BaseRpcClient {
 	protected ping: NodeJS.Timeout | null = null;
-	protected rpcConnection: RpcConnection;
+	protected rpcConnection: RpcConnection<Invokables, Events>;
 	protected signalReady: (() => void) | null = null;
 
 	public readonly ready: Promise<void>;
@@ -17,6 +21,8 @@ export class RpcClient<
 	constructor(
 		protected ws: WebSocket,
 		protected log: Logger,
+		invokables: Invokables,
+		events: Events,
 	) {
 		super(log, new RpcRouter(log));
 
@@ -24,10 +30,12 @@ export class RpcClient<
 			this.signalReady = resolve;
 		});
 
-		this.rpcConnection = new RpcConnection<Invokables>(
+		this.rpcConnection = new RpcConnection(
 			ws,
 			this.log,
 			this.router,
+			invokables,
+			events,
 		);
 
 		ws.onOpen(this.handleOpen.bind(this));
@@ -35,15 +43,12 @@ export class RpcClient<
 		ws.onClose(this.handleDisconnect.bind(this));
 	}
 
-	async emit<T extends keyof Events>(event: T, payload?: Events[T]["payload"]) {
-		return this.rpcConnection.emit(event, payload);
+	emit(...args: Parameters<RpcConnection<Invokables, Events>["emit"]>) {
+		return this.rpcConnection.emit(...args);
 	}
 
-	async invoke<T extends keyof Invokables>(
-		rpc: T,
-		args?: Invokables[T]["args"],
-	): Promise<Invokables[T]["returns"]> {
-		return this.rpcConnection.invoke(rpc, args);
+	invoke(...args: Parameters<RpcConnection<Invokables, Events>["invoke"]>) {
+		return this.rpcConnection.invoke(...args);
 	}
 
 	protected handleError(err: Error) {

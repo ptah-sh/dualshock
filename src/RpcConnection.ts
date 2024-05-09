@@ -5,7 +5,13 @@ import {
 	type ValidationErrorItem,
 } from "./errors.js";
 import type { RpcRouter } from "./RpcRouter.js";
-import { type ZodError, z, type ZodIssue, type ZodTypeAny } from "zod";
+import {
+	type ZodError,
+	z,
+	type ZodIssue,
+	type ZodTypeAny,
+	type TypeOf,
+} from "zod";
 import type { WebSocket } from "./websocket/WebSocket.js";
 import { isZodError } from "./zod.js";
 
@@ -59,8 +65,11 @@ class SerialSource {
 }
 
 export class RpcConnection<
-	Invokables extends { [key: string]: { args: any; returns: any } } = any,
-	Events extends { [key: string]: { payload: any } } = any,
+	Invokables extends Record<
+		string,
+		{ args: TypeOf<ZodTypeAny>; returns: TypeOf<ZodTypeAny> }
+	>,
+	Events extends Record<string, { payload: TypeOf<ZodTypeAny> }>,
 > {
 	protected readonly serialSource: SerialSource = new SerialSource();
 
@@ -75,6 +84,8 @@ export class RpcConnection<
 		protected ws: WebSocket,
 		protected log: Logger,
 		protected router: RpcRouter,
+		protected invokables: Invokables,
+		protected events: Events,
 	) {
 		ws.onMessage(this.handleMessage.bind(this));
 	}
@@ -194,19 +205,23 @@ export class RpcConnection<
 		this.ws.send(this.textEncoder.encode(JSON.stringify(packet)).buffer);
 	}
 
-	// TODO: ??? validate payloads and strip unspecified keys with Zod? Same for `invoke`.
 	// TODO: track subscriptions to reduce traffic usage when events are not awaited.
 	async emit<T extends keyof Events>(
 		event: T,
 		payload: Events[T]["payload"],
 	): Promise<void> {
+		const schema = this.events[event];
+		if (schema == null) {
+			throw new Error(`Event '${String(event)}' not found`);
+		}
+
 		const serial = this.serialSource.nextSerial;
 
 		await this.send({
 			serial: serial,
 			type: "event",
 			name: event as string,
-			payload: payload,
+			payload: await schema.payload.parseAsync(payload),
 		});
 
 		return this.createReceiver(serial) as Promise<void>;
@@ -216,13 +231,18 @@ export class RpcConnection<
 		rpc: T,
 		args: Invokables[T]["args"],
 	): Promise<Invokables[T]["returns"]> {
+		const schema = this.invokables[rpc];
+		if (schema == null) {
+			throw new Error(`RPC '${String(rpc)}' not found`);
+		}
+
 		const serial = this.serialSource.nextSerial;
 
 		await this.send({
 			serial: serial,
 			type: "invoke",
 			name: rpc as string,
-			args: args,
+			args: await schema.args.parseAsync(args),
 		});
 
 		return this.createReceiver(serial);
