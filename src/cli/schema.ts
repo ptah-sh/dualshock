@@ -2,7 +2,7 @@ import { zodToJsonSchema } from "zod-to-json-schema";
 import type { DualshockConfig } from "./config.js";
 
 export const createSchema = (
-	config: Pick<DualshockConfig, "registry" | "events">,
+	config: Pick<DualshockConfig["schema"], "registry" | "events">,
 ): any => {
 	const schema = {
 		$schemaVersion: "dualshock:1",
