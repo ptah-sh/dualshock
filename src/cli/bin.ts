@@ -14,7 +14,9 @@ program
 		"Generate Dualshock RPC Schema to create client's type definitions (or client libs)",
 	)
 	// TODO: add beautiful error message - check if the file exists
-	.action(async ({ config: configFile = "dualshock.config.ts" }) => {
+	.action(async () => {
+		const { config: configFile } = program.opts();
+
 		const config = await readConfig(configFile, "schema");
 
 		const schema = createSchema(config);
@@ -30,7 +32,9 @@ program
 program
 	.command("typescript")
 	.description("Generate TypeScript types from the provided JSON Schema")
-	.action(async ({ config: configFile = "dualshock.config.ts" }) => {
+	.action(async () => {
+		const { config: configFile } = program.opts();
+
 		// TODO: Should we call resolveRefs here?
 		// import { z } from "zod"
 		// import { resolveRefs } from "json-refs"
