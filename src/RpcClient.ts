@@ -49,10 +49,12 @@ export class RpcClient<
 		return this.rpcConnection.emit(...args);
 	}
 
-	invoke(
-		...args: Parameters<RpcConnection<A, R, E, Invokables, Events>["invoke"]>
-	) {
-		return this.rpcConnection.invoke(...args);
+	async invoke<
+		T extends keyof Invokables,
+		Args extends TypeOf<Invokables[T]["args"]>,
+		Returns extends TypeOf<Invokables[T]["returns"]>,
+	>(rpcName: T, args: Args): Promise<Returns> {
+		return this.rpcConnection.invoke(rpcName, args);
 	}
 
 	protected handleError(err: Error) {
