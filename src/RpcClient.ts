@@ -43,13 +43,14 @@ export class RpcClient<
 		ws.onClose(this.handleDisconnect.bind(this));
 	}
 
-	emit(
-		...args: Parameters<RpcConnection<A, R, E, Invokables, Events>["emit"]>
-	) {
-		return this.rpcConnection.emit(...args);
+	emit<T extends keyof Events, Payload extends TypeOf<Events[T]["payload"]>>(
+		event: T,
+		payload: Payload,
+	): Promise<void> {
+		return this.rpcConnection.emit(event, payload);
 	}
 
-	async invoke<
+	invoke<
 		T extends keyof Invokables,
 		Args extends TypeOf<Invokables[T]["args"]>,
 		Returns extends TypeOf<Invokables[T]["returns"]>,
