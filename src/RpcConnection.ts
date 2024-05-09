@@ -208,7 +208,7 @@ export class RpcConnection<
 	// TODO: track subscriptions to reduce traffic usage when events are not awaited.
 	async emit<T extends keyof Events>(
 		event: T,
-		payload: Events[T]["payload"],
+		payload: TypeOf<Events[T]["payload"]>,
 	): Promise<void> {
 		const schema = this.events[event];
 		if (schema == null) {
@@ -229,7 +229,7 @@ export class RpcConnection<
 
 	async invoke<T extends keyof Invokables>(
 		rpc: T,
-		args: Invokables[T]["args"],
+		args: TypeOf<Invokables[T]["args"]>,
 	): Promise<Invokables[T]["returns"]> {
 		const schema = this.invokables[rpc];
 		if (schema == null) {
