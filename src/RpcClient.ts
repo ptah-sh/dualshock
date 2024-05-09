@@ -6,14 +6,14 @@ import { BaseRpcClient } from "./BaseRpcClient.js";
 import type { TypeOf, ZodTypeAny } from "zod";
 
 export class RpcClient<
-	Invokables extends Record<
-		string,
-		{ args: TypeOf<ZodTypeAny>; returns: TypeOf<ZodTypeAny> }
-	>,
-	Events extends Record<string, { payload: TypeOf<ZodTypeAny> }>,
+	A extends ZodTypeAny,
+	R extends ZodTypeAny,
+	E extends ZodTypeAny,
+	Invokables extends Record<string, { args: A; returns: R }>,
+	Events extends Record<string, { payload: E }>,
 > extends BaseRpcClient {
 	protected ping: NodeJS.Timeout | null = null;
-	protected rpcConnection: RpcConnection<Invokables, Events>;
+	protected rpcConnection: RpcConnection<A, R, E, Invokables, Events>;
 	protected signalReady: (() => void) | null = null;
 
 	public readonly ready: Promise<void>;
@@ -43,11 +43,15 @@ export class RpcClient<
 		ws.onClose(this.handleDisconnect.bind(this));
 	}
 
-	emit(...args: Parameters<RpcConnection<Invokables, Events>["emit"]>) {
+	emit(
+		...args: Parameters<RpcConnection<A, R, E, Invokables, Events>["emit"]>
+	) {
 		return this.rpcConnection.emit(...args);
 	}
 
-	invoke(...args: Parameters<RpcConnection<Invokables, Events>["invoke"]>) {
+	invoke(
+		...args: Parameters<RpcConnection<A, R, E, Invokables, Events>["invoke"]>
+	) {
 		return this.rpcConnection.invoke(...args);
 	}
 

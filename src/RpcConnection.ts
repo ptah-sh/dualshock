@@ -11,48 +11,11 @@ import {
 	type ZodIssue,
 	type ZodTypeAny,
 	type TypeOf,
+	type ZodType,
 } from "zod";
 import type { WebSocket } from "./websocket/WebSocket.js";
 import { isZodError } from "./zod.js";
-
-const packet = z.union([
-	z.object({
-		serial: z.number(),
-		type: z.literal("event"),
-		name: z.string(),
-		payload: z.unknown().optional(),
-	}),
-	z.object({
-		serial: z.number(),
-		type: z.literal("invoke"),
-		name: z.string(),
-		args: z.unknown().optional(),
-	}),
-	z.object({
-		serial: z.number(),
-		type: z.literal("result"),
-		data: z.unknown(),
-	}),
-	z.object({
-		serial: z.number(),
-		type: z.literal("invalid"),
-		errors: z.array(
-			z.object({
-				code: z.string(),
-				path: z.union([z.string(), z.number()]).array(),
-				message: z.string(),
-			}),
-		),
-	}),
-	z.object({
-		serial: z.number(),
-		type: z.literal("error"),
-		// TODO: define better error type - require, at least, message
-		error: z.unknown(),
-	}),
-]);
-
-type Packet = z.infer<typeof packet>;
+import { Packet } from "./Packet.js";
 
 class SerialSource {
 	private serial = 0;
@@ -65,11 +28,11 @@ class SerialSource {
 }
 
 export class RpcConnection<
-	Invokables extends Record<
-		string,
-		{ args: TypeOf<ZodTypeAny>; returns: TypeOf<ZodTypeAny> }
-	>,
-	Events extends Record<string, { payload: TypeOf<ZodTypeAny> }>,
+	A extends ZodTypeAny,
+	R extends ZodTypeAny,
+	E extends ZodTypeAny,
+	Invokables extends Record<string, { args: A; returns: R }>,
+	Events extends Record<string, { payload: E }>,
 > {
 	protected readonly serialSource: SerialSource = new SerialSource();
 
@@ -97,7 +60,7 @@ export class RpcConnection<
 		// });
 
 		// TODO: handle validation errors
-		const parsedPacket = packet.parse(
+		const parsedPacket = Packet.parse(
 			JSON.parse(this.textDecoder.decode(rawData)),
 		);
 
@@ -206,10 +169,10 @@ export class RpcConnection<
 	}
 
 	// TODO: track subscriptions to reduce traffic usage when events are not awaited.
-	async emit<T extends keyof Events>(
-		event: T,
-		payload: TypeOf<Events[T]["payload"]>,
-	): Promise<void> {
+	async emit<
+		T extends keyof Events,
+		Payload extends TypeOf<Events[T]["payload"]>,
+	>(event: T, payload: Payload): Promise<void> {
 		const schema = this.events[event];
 		if (schema == null) {
 			throw new Error(`Event '${String(event)}' not found`);
@@ -227,13 +190,14 @@ export class RpcConnection<
 		return this.createReceiver(serial) as Promise<void>;
 	}
 
-	async invoke<T extends keyof Invokables>(
-		rpc: T,
-		args: TypeOf<Invokables[T]["args"]>,
-	): Promise<TypeOf<Invokables[T]["returns"]>> {
-		const schema = this.invokables[rpc];
+	async invoke<
+		T extends keyof Invokables,
+		Args extends TypeOf<Invokables[T]["args"]>,
+		Returns extends TypeOf<Invokables[T]["returns"]>,
+	>(rpcName: T, args: Args): Promise<Returns> {
+		const schema = this.invokables[rpcName];
 		if (schema == null) {
-			throw new Error(`RPC '${String(rpc)}' not found`);
+			throw new Error(`RPC '${String(rpcName)}' not found`);
 		}
 
 		const serial = this.serialSource.nextSerial;
@@ -241,11 +205,13 @@ export class RpcConnection<
 		await this.send({
 			serial: serial,
 			type: "invoke",
-			name: rpc as string,
+			name: rpcName as string,
 			args: await schema.args.parseAsync(args),
 		});
 
-		return this.createReceiver(serial);
+		const result = await this.createReceiver(serial);
+
+		return schema.returns.parseAsync(result);
 	}
 
 	disconnect() {

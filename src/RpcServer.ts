@@ -21,11 +21,11 @@ interface RpcServerOptions<
 }
 
 export class RpcServer<
-	Invokables extends Record<
-		string,
-		{ args: TypeOf<ZodTypeAny>; returns: TypeOf<ZodTypeAny> }
-	>,
-	Events extends Record<string, { payload: TypeOf<ZodTypeAny> }>,
+	A extends ZodTypeAny,
+	R extends ZodTypeAny,
+	E extends ZodTypeAny,
+	Invokables extends Record<string, { args: A; returns: R }>,
+	Events extends Record<string, { payload: E }>,
 > extends BaseRpcClient {
 	protected wss: WebSocketServer;
 
@@ -52,7 +52,7 @@ export class RpcServer<
 	protected handleConnection(ws: WebSocket) {
 		this.log.info("Incoming Connection");
 
-		new RpcConnection<Invokables, Events>(
+		new RpcConnection<A, R, E, Invokables, Events>(
 			new WebSocketWs(ws),
 			this.log,
 			this.router,
