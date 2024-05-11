@@ -16,6 +16,7 @@ interface RpcServerOptions<
 > {
 	wss: WebSocketServer;
 	logger: Logger;
+	// TODO: move invokables and events under a single key - "clients"
 	invokables: Invokables;
 	events: Events;
 }

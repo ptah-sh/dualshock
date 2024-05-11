@@ -10,10 +10,9 @@ export const createTypescript = (args: {
 		rpcTypeName = "DualshockInvokables",
 		emitsTypeName = "DualshockEvents",
 	} = args;
-
 	const contents = [];
 
-	contents.push("import { z, type ZodType } from 'zod';");
+	contents.push("import { z } from 'zod';");
 	contents.push("");
 
 	contents.push(`export const ${emitsTypeName} = {`);
@@ -26,15 +25,6 @@ export const createTypescript = (args: {
 	}
 	contents.push("} as const;");
 	contents.push("");
-
-	// contents.push(`export type ${emitsTypeName} = {`);
-	// contents.push(`  [key in keyof typeof ${emitsTypeName}]: {`);
-	// contents.push(
-	// 	`    payload: z.infer<typeof ${emitsTypeName}[key]["payload"]>;`,
-	// );
-	// contents.push("  };");
-	// contents.push("};");
-	// contents.push("");
 
 	contents.push(`export const ${rpcTypeName} = {`);
 	for (const [rpc, { args, returns }] of Object.entries<any>(schema.rpc)) {
@@ -57,17 +47,6 @@ export const createTypescript = (args: {
 	}
 	contents.push("} as const;");
 	contents.push("");
-
-	// contents.push("");
-	// contents.push(`export type ${rpcTypeName} = {`);
-	// contents.push(`  [key in keyof typeof ${rpcTypeName}]: {`);
-	// contents.push(`    args: z.infer<typeof ${rpcTypeName}[key]["args"]>;`);
-	// contents.push(
-	// 	`    returns: ${rpcTypeName}[key]["returns"] extends ZodType<infer T> ? T : z.undefined();`,
-	// );
-	// contents.push("  };");
-	// contents.push("}");
-	// contents.push("");
 
 	return contents.join("\n");
 };

@@ -18,9 +18,11 @@ export class RpcClient<
 
 	public readonly ready: Promise<void>;
 
+	// TODO: make the constructor accept object instead of arguments list
 	constructor(
 		protected ws: WebSocket,
 		protected log: Logger,
+		// TODO: move invokables and events under a single key - "server"
 		invokables: Invokables,
 		events: Events,
 	) {
