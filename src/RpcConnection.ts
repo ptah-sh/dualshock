@@ -51,6 +51,8 @@ export class RpcConnection<
 		protected events: Events,
 	) {
 		ws.onMessage(this.handleMessage.bind(this));
+		ws.onError(this.handleError.bind(this));
+		ws.onClose(this.handleClose.bind(this));
 	}
 
 	protected async handleMessage(rawData: ArrayBuffer) {
@@ -239,5 +241,13 @@ export class RpcConnection<
 				}
 			});
 		});
+	}
+
+	protected handleError(err: Error) {
+		this.log.warn('RpcConnection: "handleError"', err);
+	}
+
+	protected handleClose() {
+		this.log.info("RpcConnection: connection closed");
 	}
 }

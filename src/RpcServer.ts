@@ -14,7 +14,6 @@ interface RpcServerOptions<
 	>,
 	Events extends Record<string, { payload: TypeOf<ZodTypeAny> }>,
 > {
-	wss: WebSocketServer;
 	logger: Logger;
 	// TODO: move invokables and events under a single key - "clients"
 	invokables: Invokables;
@@ -28,14 +27,8 @@ export class RpcServer<
 	Invokables extends Record<string, { args: A; returns: R }>,
 	Events extends Record<string, { payload: E }>,
 > extends BaseRpcClient {
-	protected wss: WebSocketServer;
-
 	constructor(args: RpcServerOptions<Invokables, Events>) {
 		super(args.logger, new RpcRouter(args.logger));
-
-		this.wss = args.wss;
-
-		this.wss.on("connection", this.handleConnection.bind(this));
 
 		this.router.rpc(
 			"ping",
@@ -50,6 +43,7 @@ export class RpcServer<
 
 	// TODO: add timeout for receiving the first message (handshake).
 	// TODO: handlers should accept the WS connection / or it should be abstracted ???
+	// TODO: add onConnection(RpcConnection) callback
 	protected handleConnection(ws: WebSocket) {
 		this.log.info("Incoming Connection");
 
@@ -60,9 +54,12 @@ export class RpcServer<
 			{} as Invokables,
 			{} as Events,
 		);
+	}
 
-		ws.on("error", this.handleError.bind(this));
-		ws.on("close", this.handleClose.bind(this));
+	async listen(wss: WebSocketServer): Promise<void> {
+		wss.on("connection", this.handleConnection.bind(this));
+		wss.on("error", this.handleError.bind(this));
+		wss.on("close", this.handleClose.bind(this));
 	}
 
 	protected handleError(err: Error) {
@@ -70,6 +67,6 @@ export class RpcServer<
 	}
 
 	protected handleClose() {
-		this.log.info("Connection closed");
+		this.log.info("WebSocketServer connection closed");
 	}
 }

@@ -1,5 +1,8 @@
 import { jsonSchemaToZod } from "json-schema-to-zod";
 
+// TODO: generate typedefs for all requests and responses, like this:
+// type AgentsJoinArgs = z.infer<(typeof AgentRpc)["agents:join"]["args"]>
+// type AgentsJoinReturns = z.infer<(typeof AgentRpc)["agents:join"]["returns"]>
 export const createTypescript = (args: {
 	schema: { rpc: any; emits: any };
 	rpcTypeName?: string;
