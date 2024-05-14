@@ -90,8 +90,12 @@ export class RpcServer<
 
 	// TODO: create a PluginShim so that plugins can't manupulate server instances directly.
 	// TODO: allow to pass plugin options
-	use(plugin: Plugin<Invokables, Events>) {
-		plugin.setup(this);
+	async use(plugin: new () => Plugin<Invokables, Events>): Promise<this> {
+		const p = new plugin();
+
+		await p.setup(this);
+
+		return this;
 	}
 
 	protected handleError(err: Error) {
