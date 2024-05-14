@@ -1,7 +1,6 @@
 import { describe, test, expect } from "vitest";
 import { createSchema } from "./schema.js";
 import { RpcServer } from "../RpcServer.js";
-import { WebSocketServer } from "ws";
 import { pino } from "pino";
 import { rpc, on, emits } from "../RpcDefinition.js";
 import { z } from "zod";
@@ -10,8 +9,10 @@ import { createTypescript } from "./typescript.js";
 
 const server = new RpcServer({
 	logger: pino({ enabled: false }),
-	invokables: {},
-	events: {},
+	clients: {
+		invokables: {},
+		events: {},
+	},
 });
 
 server
