@@ -7,6 +7,7 @@ import { type TypeOf, type ZodTypeAny, z, type ZodType } from "zod";
 import { BaseRpcClient } from "./BaseRpcClient.js";
 import { rpc } from "./RpcDefinition.js";
 import type { Plugin } from "./Plugin.js";
+import { ulid } from "ulidx";
 
 interface RpcServerOptions<
 	Invokables extends Record<
@@ -16,17 +17,31 @@ interface RpcServerOptions<
 	Events extends Record<string, { payload: TypeOf<ZodTypeAny> }>,
 > {
 	logger: Logger;
-	// TODO: move invokables and events under a single key - "clients"
-	invokables: Invokables;
-	events: Events;
+	clients: {
+		invokables: Invokables;
+		events: Events;
+	};
 }
 
 export class RpcServer<
 	Invokables extends Record<string, { args: ZodTypeAny; returns: ZodTypeAny }>,
 	Events extends Record<string, { payload: ZodTypeAny }>,
 > extends BaseRpcClient {
+	public readonly connections: Record<
+		string,
+		RpcConnection<Invokables, Events>
+	> = {};
+
+	protected clients: {
+		invokables: Invokables;
+		events: Events;
+	};
+
 	constructor(args: RpcServerOptions<Invokables, Events>) {
+		// TODO: move router instantiation into super class?
 		super(args.logger, new RpcRouter(args.logger));
+
+		this.clients = args.clients;
 
 		this.router.rpc(
 			"ping",
@@ -43,14 +58,27 @@ export class RpcServer<
 	// TODO: handlers should accept the WS connection / or it should be abstracted ???
 	// TODO: add onConnection(RpcConnection) callback
 	protected handleConnection(ws: WebSocket) {
-		this.log.info("Incoming Connection");
+		const traceId = ulid();
 
-		new RpcConnection<Invokables, Events>(
-			new WebSocketWs(ws),
-			this.log,
+		const log = this.log.child({ trace: traceId });
+
+		log.info("Incoming connection");
+
+		const wsAdapter = new WebSocketWs(ws);
+
+		// TODO: call plugin lifecycle hooks
+		// wsAdapter.onOpen(() => {
+		// We need to check if the connection is still open here (readyState === open), for each plugin
+		// Probably, need to await until all plugins are done and then register the connection
+		// });
+
+		// TODO: it seems that these invokables and events should be the client's invokables and events
+		this.connections[traceId] = new RpcConnection<Invokables, Events>(
+			wsAdapter,
+			log,
 			this.router,
-			{} as Invokables,
-			{} as Events,
+			this.clients.invokables,
+			this.clients.events,
 		);
 	}
 
@@ -72,5 +100,12 @@ export class RpcServer<
 
 	protected handleClose() {
 		this.log.info("WebSocketServer connection closed");
+	}
+
+	// TODO: hook this into the real code - wsAdapter.onerror/close/etc./
+	// Mb something similar to "wsAdapter.cleanup(this.cleanupConnection.bind(this, traceId))"
+	// BTW, it is not being called yet. :)
+	protected cleanupConnection(traceId: string) {
+		delete this.connections[traceId];
 	}
 }

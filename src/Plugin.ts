@@ -7,5 +7,5 @@ export abstract class Plugin<
 > {
 	constructor(readonly name: string) {}
 
-	abstract setup(rpc: RpcServer<Invokables, Events>): Promise<void>;
+	abstract setup(server: RpcServer<Invokables, Events>): Promise<void>;
 }

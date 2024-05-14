@@ -28,7 +28,10 @@ export class WebSocketWs implements WSI {
 		this.ws.send(data);
 	}
 
-	handleMessage(callback: (data: ArrayBuffer) => void, rawData: RawData) {
+	protected handleMessage(
+		callback: (data: ArrayBuffer) => void,
+		rawData: RawData,
+	) {
 		if (!(rawData instanceof ArrayBuffer)) {
 			// Handle this case and disconnect the client.
 			console.error("Got not a buffer", rawData);
