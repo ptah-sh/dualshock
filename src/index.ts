@@ -10,3 +10,4 @@ export {
 	DualshockSchemaConfig,
 	DualshockTypescriptConfig,
 } from "./cli/index.js";
+export { Plugin } from "./Plugin.js";
