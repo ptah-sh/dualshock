@@ -3,61 +3,43 @@ import { RpcRouter } from "./RpcRouter.js";
 import type { Logger } from "pino";
 import { RpcConnection } from "./RpcConnection.js";
 import { WebSocketWs } from "./websocket/WebSocket.ws.js";
-import { type TypeOf, type ZodTypeAny, z, type ZodType } from "zod";
+import type { ZodTypeAny } from "zod";
 import { BaseRpcClient } from "./BaseRpcClient.js";
-import { rpc } from "./RpcDefinition.js";
 import type { Plugin } from "./Plugin.js";
 import { ulid } from "ulidx";
 
-interface RpcServerOptions<
-	Invokables extends Record<
-		string,
-		{ args: TypeOf<ZodTypeAny>; returns: TypeOf<ZodTypeAny> }
-	>,
-	Events extends Record<string, { payload: TypeOf<ZodTypeAny> }>,
-> {
+interface RpcServerOptions {
 	logger: Logger;
-	clients: {
-		invokables: Invokables;
-		events: Events;
-	};
 }
 
-export class RpcServer<
-	Invokables extends Record<string, { args: ZodTypeAny; returns: ZodTypeAny }>,
-	Events extends Record<string, { payload: ZodTypeAny }>,
-> extends BaseRpcClient {
-	public readonly connections: Record<
-		string,
-		RpcConnection<Invokables, Events>
-	> = {};
+export class RpcServer extends BaseRpcClient {
+	public readonly connections: Record<string, RpcConnection<any, any>> = {};
 
-	protected clients: {
-		invokables: Invokables;
-		events: Events;
-	};
-
-	constructor(args: RpcServerOptions<Invokables, Events>) {
+	constructor(args: RpcServerOptions) {
 		// TODO: move router instantiation into super class?
 		super(args.logger, new RpcRouter(args.logger));
-
-		this.clients = args.clients;
-
-		this.router.rpc(
-			"ping",
-			rpc()
-				.args(z.date())
-				.returns(z.date())
-				.fn(async () => {
-					return new Date();
-				}),
-		);
+		// TODO: extract the ping logic into a plugin, so that it doesn't leak everywhere.
+		// this.router.rpc(
+		// 	"ping",
+		// 	rpc()
+		// 		.args(z.date())
+		// 		.returns(z.date())
+		// 		.fn(async () => {
+		// 			return new Date();
+		// 		}),
+		// );
 	}
 
 	// TODO: add timeout for receiving the first message (handshake).
 	// TODO: handlers should accept the WS connection / or it should be abstracted ???
 	// TODO: add onConnection(RpcConnection) callback
-	protected handleConnection(ws: WebSocket) {
+	protected handleConnection<
+		Invokables extends Record<
+			string,
+			{ args: ZodTypeAny; returns: ZodTypeAny }
+		>,
+		Events extends Record<string, { payload: ZodTypeAny }>,
+	>(invokables: Invokables, events: Events, ws: WebSocket) {
 		const traceId = ulid();
 
 		const log = this.log.child({ trace: traceId });
@@ -77,20 +59,30 @@ export class RpcServer<
 			wsAdapter,
 			log,
 			this.router,
-			this.clients.invokables,
-			this.clients.events,
+			invokables,
+			events,
 		);
 	}
 
-	async listen(wss: WebSocketServer): Promise<void> {
-		wss.on("connection", this.handleConnection.bind(this));
+	async listen<
+		Invokables extends Record<
+			string,
+			{ args: ZodTypeAny; returns: ZodTypeAny }
+		>,
+		Events extends Record<string, { payload: ZodTypeAny }>,
+	>(
+		wss: WebSocketServer,
+		invokables: Invokables,
+		events: Events,
+	): Promise<void> {
+		wss.on("connection", this.handleConnection.bind(this, invokables, events));
 		wss.on("error", this.handleError.bind(this));
 		wss.on("close", this.handleClose.bind(this));
 	}
 
 	// TODO: create a PluginShim so that plugins can't manupulate server instances directly.
 	// TODO: allow to pass plugin options
-	async use(plugin: new () => Plugin<Invokables, Events>): Promise<this> {
+	async use(plugin: new () => Plugin<RpcServer>): Promise<this> {
 		const p = new plugin();
 
 		await p.setup(this);
