@@ -1,3 +1,4 @@
+// TODO: Add WebSocketClient with `connect` method?
 export interface WebSocket {
 	onOpen(callback: () => void): void;
 	onMessage(callback: (data: ArrayBuffer) => void): void;

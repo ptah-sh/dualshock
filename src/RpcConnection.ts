@@ -28,11 +28,8 @@ class SerialSource {
 }
 
 export class RpcConnection<
-	A extends ZodTypeAny,
-	R extends ZodTypeAny,
-	E extends ZodTypeAny,
-	Invokables extends Record<string, { args: A; returns: R }>,
-	Events extends Record<string, { payload: E }>,
+	Invokables extends Record<string, { args: ZodTypeAny; returns: ZodTypeAny }>,
+	Events extends Record<string, { payload: ZodTypeAny }>,
 > {
 	protected readonly serialSource: SerialSource = new SerialSource();
 

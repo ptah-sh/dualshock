@@ -50,6 +50,7 @@ export class RpcRouter {
 		return this;
 	}
 
+	// TODO: store events into a persistend storage for processing later (in kafka, lol)
 	async handleEvent(
 		eventName: string,
 		jsonData: unknown,

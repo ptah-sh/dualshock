@@ -55,7 +55,7 @@ export class RpcClient extends BaseRpcClient {
 	>(
 		ws: IWebSocket,
 		serverOpts: ServerOptions<Invokables, Events>,
-	): Promise<RpcConnection<A, R, E, Invokables, Events>> {
+	): Promise<RpcConnection<Invokables, Events>> {
 		const rpcConnection = new RpcConnection(
 			ws,
 			this.log,

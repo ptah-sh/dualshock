@@ -6,6 +6,7 @@ import { WebSocketWs } from "./websocket/WebSocket.ws.js";
 import { type TypeOf, type ZodTypeAny, z, type ZodType } from "zod";
 import { BaseRpcClient } from "./BaseRpcClient.js";
 import { rpc } from "./RpcDefinition.js";
+import type { Plugin } from "./Plugin.js";
 
 interface RpcServerOptions<
 	Invokables extends Record<
@@ -21,11 +22,8 @@ interface RpcServerOptions<
 }
 
 export class RpcServer<
-	A extends ZodTypeAny,
-	R extends ZodTypeAny,
-	E extends ZodTypeAny,
-	Invokables extends Record<string, { args: A; returns: R }>,
-	Events extends Record<string, { payload: E }>,
+	Invokables extends Record<string, { args: ZodTypeAny; returns: ZodTypeAny }>,
+	Events extends Record<string, { payload: ZodTypeAny }>,
 > extends BaseRpcClient {
 	constructor(args: RpcServerOptions<Invokables, Events>) {
 		super(args.logger, new RpcRouter(args.logger));
@@ -47,7 +45,7 @@ export class RpcServer<
 	protected handleConnection(ws: WebSocket) {
 		this.log.info("Incoming Connection");
 
-		new RpcConnection<A, R, E, Invokables, Events>(
+		new RpcConnection<Invokables, Events>(
 			new WebSocketWs(ws),
 			this.log,
 			this.router,
@@ -60,6 +58,12 @@ export class RpcServer<
 		wss.on("connection", this.handleConnection.bind(this));
 		wss.on("error", this.handleError.bind(this));
 		wss.on("close", this.handleClose.bind(this));
+	}
+
+	// TODO: create a PluginShim so that plugins can't manupulate server instances directly.
+	// TODO: allow to pass plugin options
+	use(plugin: Plugin<Invokables, Events>) {
+		plugin.setup(this);
 	}
 
 	protected handleError(err: Error) {
