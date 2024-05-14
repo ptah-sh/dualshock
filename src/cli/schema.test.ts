@@ -9,10 +9,6 @@ import { createTypescript } from "./typescript.js";
 
 const server = new RpcServer({
 	logger: pino({ enabled: false }),
-	clients: {
-		invokables: {},
-		events: {},
-	},
 });
 
 server

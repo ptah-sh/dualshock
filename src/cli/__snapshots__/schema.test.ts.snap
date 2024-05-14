@@ -21,18 +21,6 @@ exports[`schema > createSchema 1`] = `
     },
   },
   "rpc": {
-    "ping": {
-      "args": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "format": "date-time",
-        "type": "string",
-      },
-      "returns": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "format": "date-time",
-        "type": "string",
-      },
-    },
     "rpc-in-root-ns": {
       "args": {
         "$schema": "http://json-schema.org/draft-07/schema#",
@@ -79,10 +67,6 @@ export const DualshockEvents = {
 } as const;
 
 export const DualshockInvokables = {
-  "ping": {
-    args: z.string().datetime({ offset: true }),
-    returns: z.string().datetime({ offset: true }),
-  },
   "rpc-in-root-ns": {
     args: z.number(),
     returns: z.undefined(),
