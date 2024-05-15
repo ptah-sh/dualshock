@@ -82,6 +82,7 @@ export class RpcServer extends BaseRpcClient {
 
 	// TODO: create a PluginShim so that plugins can't manupulate server instances directly.
 	// TODO: allow to pass plugin options
+	// TODO: allow to set up the base namespace for the plugin - mb define `use` on a router instead.
 	async use(plugin: new () => Plugin<RpcServer>): Promise<this> {
 		const p = new plugin();
 

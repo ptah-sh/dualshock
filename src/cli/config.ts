@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+// TODO: add option to filter rpcs by regexp/namespace/etc.
+//   Needed for creating schema/typings for debug plugin.
 export const DualshockConfig = z.object({
 	schema: z
 		.object({

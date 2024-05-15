@@ -14,16 +14,18 @@ export class RpcRouter {
 	constructor(protected log: Logger) {}
 
 	ns(name: string): RpcRouter {
-		// TODO: throw an error if the rpc/namespace were already registered
+		const nsKey: `ns$${string}` = `ns$${name}`;
+		if (!this.registry[nsKey]) {
+			const subRouter = new RpcRouter(this.log);
 
-		const subRouter = new RpcRouter(this.log);
+			this.registry[nsKey] = subRouter;
+		}
 
-		this.registry[`ns$${name}`] = subRouter;
-
-		return subRouter;
+		return this.registry[nsKey];
 	}
 
 	emits(name: string, event: { schema: TEvent<any> & EmitsBrand }): RpcRouter {
+		// TODO: throw an error if the event has been already registered
 		this.registry[`emits$${name}`] = event.schema;
 
 		return this;
