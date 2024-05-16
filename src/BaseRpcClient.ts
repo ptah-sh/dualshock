@@ -2,6 +2,7 @@ import type { Logger } from "pino";
 import { RpcRouter } from "./RpcRouter.js";
 import type { TRpc } from "./RpcDefinition.js";
 import type { TEvent } from "./events.js";
+import type { ZodTypeAny } from "zod";
 
 export abstract class BaseRpcClient {
 	constructor(
@@ -25,7 +26,7 @@ export abstract class BaseRpcClient {
 		return this.router.ns(...args);
 	}
 
-	events(): Record<string, TEvent<any>> {
+	events(): Record<string, TEvent<ZodTypeAny>> {
 		return collectRoutes("emits", [], this.router);
 	}
 

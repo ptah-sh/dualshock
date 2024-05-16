@@ -16,6 +16,7 @@ import {
 import type { WebSocket } from "./websocket/WebSocket.js";
 import { isZodError } from "./zod.js";
 import { Packet } from "./Packet.js";
+import type { TEvent } from "./events.js";
 
 class SerialSource {
 	private serial = 0;
@@ -29,7 +30,7 @@ class SerialSource {
 
 export class RpcConnection<
 	Invokables extends Record<string, { args: ZodTypeAny; returns: ZodTypeAny }>,
-	Events extends Record<string, { payload: ZodTypeAny }>,
+	Events extends Record<string, Pick<TEvent<ZodTypeAny>, "payload">>,
 > {
 	protected readonly serialSource: SerialSource = new SerialSource();
 

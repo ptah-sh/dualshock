@@ -64,12 +64,12 @@ export class RpcServer extends BaseRpcClient {
 		// });
 
 		// TODO: it seems that these invokables and events should be the client's invokables and events
-		this.connections[traceId] = new RpcConnection<Invokables, Events>(
+		this.connections[traceId] = new RpcConnection(
 			wsAdapter,
 			log,
 			this.router,
 			invokables,
-			events,
+			this.events(),
 		);
 
 		for (const fn of this.listeners.onConnection) {
