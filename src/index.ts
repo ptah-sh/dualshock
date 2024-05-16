@@ -1,4 +1,4 @@
-export { RpcServer } from "./RpcServer.js";
+export { RpcServer, OnConnectionCallback } from "./RpcServer.js";
 export { RpcClient } from "./RpcClient.js";
 export { RpcConnection } from "./RpcConnection.js";
 export { WebSocketDom } from "./websocket/WebSocket.dom.js";

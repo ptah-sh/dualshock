@@ -36,7 +36,7 @@ export const createTypescript = (args: {
 			`    args: ${
 				args
 					? jsonSchemaToZod(args).replace(/\.strict\(\)/g, "")
-					: "`.undefined()"
+					: "z.undefined()"
 			},`,
 		);
 		contents.push(

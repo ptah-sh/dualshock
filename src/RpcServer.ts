@@ -12,8 +12,17 @@ interface RpcServerOptions {
 	logger: Logger;
 }
 
+export type OnConnectionCallback = (
+	connectionId: string,
+	connection: RpcConnection<any, any>,
+) => void | Promise<void>;
+
 export class RpcServer extends BaseRpcClient {
 	public readonly connections: Record<string, RpcConnection<any, any>> = {};
+
+	protected listeners: Record<"onConnection", Array<OnConnectionCallback>> = {
+		onConnection: [],
+	};
 
 	constructor(args: RpcServerOptions) {
 		// TODO: move router instantiation into super class?
@@ -62,6 +71,12 @@ export class RpcServer extends BaseRpcClient {
 			invokables,
 			events,
 		);
+
+		for (const fn of this.listeners.onConnection) {
+			// TODO: catch errors (both sync/async) and log them.
+			//   Do NOT await for callback completion, let them run async
+			fn(traceId, this.connections[traceId]);
+		}
 	}
 
 	async listen<
@@ -104,5 +119,9 @@ export class RpcServer extends BaseRpcClient {
 	// BTW, it is not being called yet. :)
 	protected cleanupConnection(traceId: string) {
 		delete this.connections[traceId];
+	}
+
+	onConnection(callback: OnConnectionCallback) {
+		this.listeners.onConnection.push(callback);
 	}
 }
