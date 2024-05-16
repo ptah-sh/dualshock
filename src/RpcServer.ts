@@ -121,6 +121,13 @@ export class RpcServer extends BaseRpcClient {
 		delete this.connections[traceId];
 	}
 
+	// Ooops, we've lost typing here.
+	broadcast(event: string, payload: unknown) {
+		for (const connection of Object.values(this.connections)) {
+			connection.emit(event, payload);
+		}
+	}
+
 	onConnection(callback: OnConnectionCallback) {
 		this.listeners.onConnection.push(callback);
 	}
